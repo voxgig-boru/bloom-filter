@@ -145,10 +145,12 @@ meaningless. The check is a guard against silently-wrong results.
 
 ### Packed bit storage
 
-Bits are packed into an `Array` of integer words, 63 bits per word
-(bit 63 is the sign bit; staying out of it keeps every word a plain
-non-negative Integer). The Array is fixed-extent and mutated in place
-through `set`, and the word-level operations come from `aql:bin-util`:
+Bits are packed into a `FlexList` (built with `flex`) of integer
+words, 63 bits per word (bit 63 is the sign bit; staying out of it
+keeps every word a plain non-negative Integer). The FlexList is
+mutated in place through `set` (which, unlike the retired `Array`
+`set`, also returns the list — callers drop the result), and the
+word-level operations come from `aql:bin-util`:
 `BinUtil.set`/`BinUtil.test` for single bits, `BinUtil.popcount` for
 `count`, and `BinUtil.bor` for `merge` — so the formerly per-bit
 `O(m)` walks now touch one word per 63 bits. Memory is `O(m/63)`
@@ -156,15 +158,19 @@ regardless of load.
 
 Earlier versions used a sparse map keyed by stringified bit index,
 because the runtime then had no mutable indexed container and no
-bitwise words outside core. With `Array` and the `bin-util` second
-tier, the packed layout is both the simpler and the faster choice.
+bitwise words outside core. With a mutable list (originally the
+since-retired `Array` builtin, now `flex`/`FlexList`) and the
+`bin-util` second tier, the packed layout is both the simpler and the
+faster choice.
 
-One subtlety: the `bits` field is declared by *type* (`bits: Array`)
-rather than given a schema default, and every constructor passes a
-fresh Array. A class-field default is evaluated once, at class
-definition, and that single value would be shared by every instance —
-a mutable default would silently alias all filters together (see
-`dx-report.md` §2).
+One subtlety: the `bits` field is declared by *type*
+(`bits: FlexList`) rather than given a schema default, and every
+constructor passes a fresh FlexList. A class-field default is
+evaluated once, at class definition, and that single value would be
+shared by every instance — a mutable default would silently alias all
+filters together (see `dx-report.md` §2). Relatedly, `flex` *aliases*
+the list it is given rather than copying it, so the constructor only
+ever wraps a freshly computed word list.
 
 ### Mutation in place
 

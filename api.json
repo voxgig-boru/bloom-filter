@@ -19,7 +19,7 @@
     "bloom.aql": { "kind": "bloom filter", "namespaces": ["Bloom"] }
   },
   "types": {
-    "BloomFilter": { "kind": "class", "fields": ["n", "p", "m", "k", "added", "bits"], "note": "sealed class; construct only via Bloom.make; fields are read-only. `bits` is an Array of 63-bit integer words." }
+    "BloomFilter": { "kind": "class", "fields": ["n", "p", "m", "k", "added", "bits"], "note": "sealed class; construct only via Bloom.make; fields are read-only. `bits` is a FlexList of 63-bit integer words." }
   },
   "word_specs": {
     "bloom": {

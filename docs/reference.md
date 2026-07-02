@@ -50,14 +50,14 @@ A sealed `class` instance — the filter. Fields:
 | `m`     | Integer  | Derived bit-array width                             |
 | `k`     | Integer  | Derived number of hash functions                   |
 | `added` | Integer  | Count of `add` calls made against this filter      |
-| `bits`  | Array    | Packed bit storage — 63 bits per integer word      |
+| `bits`  | FlexList | Packed bit storage — 63 bits per integer word      |
 
 Instances are created only through `Bloom.make`. Treat the fields as
 read-only; mutate exclusively through the namespace words. (The class
 is sealed and strictly typed, so writing an unknown field or a
 mis-typed value is a loud error.)
 
-`bits` is internal: an `Array` of `ceil(m / 63)` integer words, bit
+`bits` is internal: a `FlexList` of `ceil(m / 63)` integer words, bit
 `i` living at bit `i mod 63` of word `i div 63`. Bit 63 (the sign
 bit) is never used, so every word stays a plain non-negative Integer.
 
@@ -244,7 +244,7 @@ general AQL dispatch problem — the word collects the following token
 
 | Word       | Cost      |
 |------------|-----------|
-| `make`     | `O(m/63)` (allocates the word Array) |
+| `make`     | `O(m/63)` (allocates the word FlexList) |
 | `add`      | `O(k)`    |
 | `contains` | `O(k)`    |
 | `count`    | `O(m/63)` |
