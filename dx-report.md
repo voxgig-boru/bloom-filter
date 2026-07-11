@@ -117,21 +117,26 @@ The reliable idiom remains one fully-grouped value per statement —
 `print (`label: ${value}`) end` — with which output appears strictly
 in source order. Every print in this module's tests and docs uses it.
 
-### 2. 🟢 `aql check` is quieter but still not gating-ready
+### 2. ✅ `aql check` is now gating-ready (resolved on the pinned build)
 
-Improved by `d867f1af` (unknown-type results no longer produce
-strict-`Any` false errors): the spurious `no_signature` reports for
-`getr`, `each`, and user fns are gone — `aql check bloom.aql` dropped
-from ~40 finding lines to 30. Still standing in the way of CI use on
-this module:
+The check-mode false positives are **gone** on the current pin. Two upstream
+re-pins cleared them: `2342477` ("checker-accuracy fixes: 0 check
+warnings/info") and `7b1a4fb` ("full check cleanliness: 0 errors/warnings/
+info"). Both blockers this section tracked are fixed:
 
-- two false `no_signature: no matching signature for mul` hits in
-  `derive-m`/`derive-k` (arithmetic flowing through `convert Float`),
-  plus a consequent `fn_body_error` for `derive-k` — the same code
-  runs (and is property-tested) fine;
-- `unused_def` warnings for every word referenced only by the
-  `export "Bloom" {…}` map — the checker doesn't treat the export map
-  as a use site.
+- the false `no_signature: no matching signature for mul` in
+  `derive-m`/`derive-k` (arithmetic through `convert Float`) and the
+  consequent `fn_body_error` — gone (the `convert` return-type fix);
+- the `unused_def` cascade on the words reachable only through the
+  `export "Bloom" {…}` map — the checker now traces those exports as uses.
+
+`aql check bloom.aql` reports **0 errors** (and exits `0`), so it is safe to
+gate. **Follow-up:** the CI static-check step in `.github/workflows/test.yml`
+still runs `aql check --soft bloom.aql` with `continue-on-error: true` (an
+advisory carried over from when the false positives were real). Dropping
+`--soft` and `continue-on-error` — `run: aql check bloom.aql` — turns it into
+a real gate. That edit needs a token with `workflow` scope (as the workflow
+promotion did), so it is left for a maintainer.
 
 ### 3. ✅ Bytecode (`--compile`) each-body block-local divergence — fixed upstream (`407feda`)
 
@@ -249,5 +254,5 @@ this module's history):
 | — | — | `getr` code ≠ docs (was §6 🟢) | **fixed** (`93ebcd40`) |
 | — | — | `jsonify` stringifies Floats (was §7 🟢) | **fixed** (`862546fd`) |
 | 1 | 🟡 | `print` forward-collection reverses/breaks | unchanged (3rd report) |
-| 2 | 🟢 | `aql check`: false `mul` no_signature; export-map words flagged unused | improved, still open |
+| 2 | ✅ | `aql check`: false `mul` no_signature + export-map `unused_def` | **resolved** on `7b1a4fb` (0 errors; gating-ready) |
 | 3 | ✅ | bytecode `--compile` block-local `each`-body divergence (+ two 2026-06-23 `main` regressions) | **fixed** upstream `f247557`/`fc47452`; harness pin moved to aql `407feda` |
