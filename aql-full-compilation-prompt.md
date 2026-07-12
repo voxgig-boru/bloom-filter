@@ -1,3 +1,30 @@
+> **STATUS — RESOLVED (2026-07-11) on `aql-lang/aql` `main`.** The library and
+> **all five** test suites now run fully bytecode-compiled (`aql
+> --force-compile`) with no refusals, output byte-identical to the interpreter.
+> Two things closed the gap:
+>
+> - **In `aql-lang/aql`:** the dominant refusal is no longer refusal A/B from
+>   the table below but their evolved form — `fn make-bloom: dynamic-scope def
+>   \`k-val\` of unpromoted computed value`. Root cause: `DynEnv` is armed
+>   program-wide by a *later* `do {…}` map body (`Bloom.params`/`encode`), after
+>   `make-bloom` already finished compiling, so its computed `def`s were never
+>   promoted. Fix: `EmitState.promoteLateDynBind` (`eng/go/lower.go`), called
+>   from `Finalize`, seats a late-armed unit's dyn-bound computed sources — the
+>   exact `(es.dynEnv && valueDef)` promotion, deferred. See
+>   `design/aql-bytecode-late-dynenv-promotion.0.md`; gated by
+>   `make verify-bytecode` + a hand-pinned `RunCompiledStrict == Run`
+>   regression.
+> - **In this repo:** `bloom_prop_test.aql`'s summary block used stale postfix
+>   `"x" print` chains (a hard error under the current forward-args build — see
+>   the calling rule in `AGENTS.md`) and an `if` with side-effect `print` arms
+>   inside a dynamic-element `each` (an unrelated code-body-word refusal). Both
+>   were rewritten to the canonical forms (`print (value)`; `if`-as-expression
+>   that computes the line then prints once) with no change to what the suite
+>   asserts.
+>
+> Performance baseline for the compiled library: `docs/performance-baseline.md`.
+> The historical work-order below is kept as the record.
+
 # Work prompt for `aql-lang/aql`: make the bloom-filter client library fully compilable
 
 **Audience:** an engineer/agent working on the `aql-lang/aql` repo (the
