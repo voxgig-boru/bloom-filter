@@ -1,22 +1,18 @@
 name: tests
 
-# The bloom-filter module is written in AQL, so CI has to build the
-# `aql` interpreter from source before it can run anything. The
-# language has no tagged release yet and has shipped breaking changes
-# between commits, so we pin AQL_REF to the exact commit this module is
-# verified against. Bump it (and re-run the suites locally) when
-# adopting a newer aql.
+# The bloom-filter module is written in AQL, so CI builds the `aql`
+# interpreter from source before it can run anything. This library TRACKS
+# aql-lang/aql MAIN: every run resolves main's current HEAD and builds that
+# commit (the binary is cached by the resolved SHA, so it only rebuilds when
+# main advances). The daily schedule surfaces upstream breaks even while this
+# repo is idle — aql is under active development and breaks are expected.
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
-
-env:
-  # aql-lang/aql @ main, 2026-06-24 (PR #182, claude/aql-client-issues-6b8new).
-  # Pinned to the exact commit this module is verified against — the build
-  # where all five suites interpret, check (0 errors), and compile clean.
-  AQL_REF: 618562025d9e0154107306927911a8b1b046333c
+  schedule:
+    - cron: '0 6 * * *'
 
 jobs:
   test:
@@ -30,33 +26,37 @@ jobs:
         with:
           go-version: '1.24'
 
-      # The compiled binary only depends on AQL_REF (and the OS), so a
-      # hit here lets us skip the clone + build entirely.
+      - name: Resolve aql main HEAD
+        id: aqlref
+        run: echo "sha=$(git ls-remote https://github.com/aql-lang/aql.git main | cut -f1)" >> "$GITHUB_OUTPUT"
+
+      # The compiled binary depends only on the resolved aql SHA (and the OS),
+      # so an unchanged main HEAD hits the cache; a new HEAD misses and rebuilds.
       - name: Cache aql binary
         id: cache-aql
         uses: actions/cache@v4
         with:
           path: ~/.local/bin/aql
-          key: aql-${{ env.AQL_REF }}-${{ runner.os }}
+          key: aql-${{ steps.aqlref.outputs.sha }}-${{ runner.os }}
 
       - name: Check out aql source
         if: steps.cache-aql.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
         with:
           repository: aql-lang/aql
-          ref: ${{ env.AQL_REF }}
+          ref: ${{ steps.aqlref.outputs.sha }}
           path: aql-src
 
-      # The documented `go install …/cmd/go/aql@latest` cannot work
-      # while cmd/go/go.mod carries replace directives, so we build from
-      # the clone with -mod=mod instead.
+      # The documented `go install …/cmd/go/aql@latest` cannot work while
+      # cmd/go/go.mod carries replace directives, so we build from the
+      # checkout with GOWORK=off -mod=mod instead.
       - name: Build aql
         if: steps.cache-aql.outputs.cache-hit != 'true'
         run: |
           mkdir -p "$HOME/.local/bin"
           cd aql-src/cmd/go
           GOWORK=off GOFLAGS=-mod=mod go build \
-            -ldflags "-X github.com/aql-lang/aql/cmd/go.Version=${AQL_REF}" \
+            -ldflags "-X github.com/aql-lang/aql/cmd/go.Version=${{ steps.aqlref.outputs.sha }}" \
             -o "$HOME/.local/bin/aql" ./aql
 
       - name: Add aql to PATH
@@ -96,9 +96,8 @@ jobs:
 
   # Gating three-surface guard: every suite must interpret, `aql check` with
   # zero errors, AND match under the byte compiler (`aql --compile`). run.sh
-  # builds its own aql (same pinned ref, via codeload tarball) and is
-  # self-contained. Safe to gate because the ref is pinned. See
-  # test/divergence/README.md.
+  # resolves aql main HEAD itself and builds it (via codeload tarball, cached
+  # by the resolved SHA) so it is self-contained. See test/divergence/README.md.
   divergence:
     runs-on: ubuntu-latest
     steps:
@@ -113,11 +112,9 @@ jobs:
       - name: interpreter / check / byte-compiler agreement
         run: test/divergence/run.sh
 
-  # Lightweight guard for the agent-skill packaging and the pinned-ref single
-  # source of truth (no aql needed). The plugin must bundle its own copy of the
-  # skill — plugins can't point at an external .claude/skills dir — so two
-  # copies exist and can drift; and the aql commit is pinned in several files
-  # that must agree.
+  # Lightweight guard for the agent-skill packaging. The plugin must bundle its
+  # own copy of the skill — plugins can't point at an external .claude/skills
+  # dir — so two copies exist and can drift.
   consistency:
     runs-on: ubuntu-latest
     steps:
@@ -148,31 +145,3 @@ jobs:
               exit 1
             fi
           done
-
-      # The pinned aql commit lives in several files; they must agree or a
-      # session/CI builds a different interpreter than the one this library is
-      # verified against (the exact drift that bit the trie sibling repo).
-      # This workflow's env.AQL_REF (full 40-char) is the single source of truth;
-      # api.json stores a short prefix, so compare by prefix; test/divergence/run.sh
-      # carries its own AQL_BYTECODE_REF that must match too.
-      - name: Pinned aql ref is consistent across files
-        run: |
-          ref='${{ env.AQL_REF }}'
-          fail=0
-          hook_ref=$(grep -oE 'AQL_REF=[0-9a-f]{7,40}' .claude/hooks/session-start.sh | head -1 | cut -d= -f2)
-          if [ "$hook_ref" != "$ref" ]; then
-            echo "::error file=.claude/hooks/session-start.sh::AQL_REF=$hook_ref != .github/workflows/test.yml AQL_REF=$ref"
-            fail=1
-          fi
-          div_ref=$(grep -oE 'AQL_BYTECODE_REF=[0-9a-f]{7,40}' test/divergence/run.sh | head -1 | cut -d= -f2)
-          if [ "$div_ref" != "$ref" ]; then
-            echo "::error file=test/divergence/run.sh::AQL_BYTECODE_REF=$div_ref != .github/workflows/test.yml AQL_REF=$ref"
-            fail=1
-          fi
-          api_ref=$(python3 -c "import json;print(json.load(open('api.json'))['aql_ref'])")
-          if [ "${ref:0:${#api_ref}}" != "$api_ref" ]; then
-            echo "::error file=api.json::aql_ref=$api_ref is not a prefix of .github/workflows/test.yml AQL_REF=$ref"
-            fail=1
-          fi
-          [ "$fail" = 0 ] && echo "ok: pinned aql ref consistent ($ref; api.json prefix $api_ref)"
-          exit $fail
