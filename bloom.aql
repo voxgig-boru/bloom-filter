@@ -31,10 +31,10 @@
 # struct-util) — this module imports them itself.
 
 
-import "aql:math-util"
-import "aql:array-util"
-import "aql:bin-util"
-import "aql:struct-util"
+import "boru:math-util"
+import "boru:array-util"
+import "boru:bin-util"
+import "boru:struct-util"
 
 
 # --- type -----------------------------------------------------------
@@ -59,7 +59,7 @@ def BloomFilter class {
 # --- hashing --------------------------------------------------------
 #
 # Double hashing (Kirsch–Mitzenmacher): index_i = (h1 + i*h2) mod m.
-# h1 and h2 come from the native FNV-1a words in aql:bin-util — fnv32
+# h1 and h2 come from the native FNV-1a words in boru:bin-util — fnv32
 # for h1, the high half of fnv64 for h2 — so any string hashes
 # directly (no printable-ASCII alphabet table, as the pre-class
 # versions of this module needed). h2 is OR'd with 1 so it is always

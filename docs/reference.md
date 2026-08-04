@@ -12,13 +12,13 @@ recipes, see the [How-to guides](how-to.md).
 The module exports a single namespace, `Bloom`, plus the `BloomFilter`
 type. Import it with:
 
-```aql
+```boru
 import "./bloom.aql"
 ```
 
 (No `end` is required after `import` on the pinned build; a trailing
 `end` is harmless.) A consuming script does **not** need to import
-`aql:math-util`, `aql:array-util`, `aql:bin-util`, or `aql:struct-util`
+`boru:math-util`, `boru:array-util`, `boru:bin-util`, or `boru:struct-util`
 itself — `bloom.aql` imports them internally.
 
 ---
@@ -29,9 +29,9 @@ Every operation is a forward-dispatched word and must be terminated
 with `end` (or wrapped in parentheses) at the call site, e.g.
 `bf Bloom.add "x" end` or `(bf Bloom.add "x")`. Without a terminator
 the word collects the following token as an argument. This is general
-AQL forward-precedence behaviour, not specific to this module.
+boru forward-precedence behaviour, not specific to this module.
 
-Argument order follows the AQL rule "first signature parameter is the
+Argument order follows the boru rule "first signature parameter is the
 top of the stack". The call-site columns below show the natural
 left-to-right order to write.
 
@@ -81,7 +81,7 @@ Construct a filter sized for a target capacity and false-positive rate.
 are enforced: a `p` above `0.5` would round `k` toward `0`, so it is
 rejected rather than accepted uselessly.
 
-```aql
+```boru
 def bf ({n: 1000, p: 0.01} Bloom.make end)
 print ((bf Bloom.params end)) end
 # => {k:7 m:9586 n:1000 p:0.01}
@@ -118,7 +118,7 @@ the item was **probably added** — it may be a false positive at
 approximately rate `p`. There are no false negatives. See
 [Explanation §No false negatives](explanation.md#why-there-are-no-false-negatives).
 
-```aql
+```boru
 def _ (bf Bloom.add "alice" end)
 print ((bf Bloom.contains "alice" end)) end   # => true
 print ((bf Bloom.contains "carol" end)) end   # => false
@@ -150,7 +150,7 @@ Return the filter's parameters as a Map.
 | **Stack in**| `BloomFilter` |
 | **Returns** | `Map` with keys `n`, `p`, `m`, `k` |
 
-```aql
+```boru
 def ps (bf Bloom.params end)
 print ((ps "m" get)) end   # => 9586
 ```
@@ -190,7 +190,7 @@ Serialize the filter to a jsonic-style string snapshot.
 The string carries `n`, `p`, `m`, `k`, `added`, and the sorted list of
 set bit indices. Cost is `O(m)`.
 
-```aql
+```boru
 print ((bf Bloom.encode end)) end
 # => {added:1 k:7 m:9586 n:1000 p:0.01 set:[223 1110 2827 3714 4601 6318 7205]}
 ```
@@ -216,7 +216,7 @@ The payload's own `m` and `k` are trusted (not re-derived from `n` and
 rebuilt filter is independent of the original — mutating one does not
 affect the other.
 
-```aql
+```boru
 def snap (bf Bloom.encode end)
 def back (snap Bloom.decode end)
 print ((back Bloom.contains "alice" end)) end   # => true
@@ -237,7 +237,7 @@ read `e get code` / `e get message` (dispatch on several codes with
 | `bad_payload` | `decode` | text is not parseable jsonic, or is missing/mis-typing `n p m k added set` |
 
 A missing `end` after a `Bloom.*` call is not a module error but a
-general AQL dispatch problem — the word collects the following token
+general boru dispatch problem — the word collects the following token
 (add `end` or parens).
 
 ## Complexity

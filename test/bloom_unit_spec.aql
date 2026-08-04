@@ -24,7 +24,7 @@
 #   aql test/bloom_unit_spec.aql
 
 
-import "aql:test" end
+import "boru:test" end
 import "./bloom.aql" end
 
 

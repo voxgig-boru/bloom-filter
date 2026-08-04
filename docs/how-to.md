@@ -6,7 +6,7 @@ bloom filter is; if not, start with the [Tutorial](tutorial.md). For the
 [Explanation](explanation.md); for exact signatures, the
 [Reference](reference.md).
 
-- [Install and run aql](#install-and-run-aql)
+- [Install and run boru](#install-and-run-aql)
 - [Size a filter for a target false-positive rate](#size-a-filter-for-a-target-false-positive-rate)
 - [Add and query items](#add-and-query-items)
 - [Estimate how many distinct items you've added](#estimate-how-many-distinct-items-youve-added)
@@ -19,33 +19,33 @@ bloom filter is; if not, start with the [Tutorial](tutorial.md). For the
 
 ---
 
-## Install and run aql
+## Install and run boru
 
-The module is written in AQL, which has no tagged release yet, so build
+The module is written in boru, which has no tagged release yet, so build
 the interpreter from source (the documented `go install …/aql@latest`
 fails on the repo's replace directives):
 
 ```bash
-git clone https://github.com/aql-lang/aql /tmp/aql-source
+git clone https://github.com/boru-lang/boru /tmp/aql-source
 cd /tmp/aql-source
-git checkout 618562025d9e0154107306927911a8b1b046333c   # the commit CI pins (.github/workflows/test.yml AQL_REF)
+git checkout 618562025d9e0154107306927911a8b1b046333c   # the commit CI pins (.github/workflows/test.yml BORU_REF)
 cd cmd/go
-GOFLAGS=-mod=mod go build -o "$HOME/.local/bin/aql" ./aql
+GOFLAGS=-mod=mod go build -o "$HOME/.local/bin/boru" ./boru
 ```
 
 Make sure `$HOME/.local/bin` is on your `PATH`, then check it:
 
 ```bash
-aql -version
+boru -version
 ```
 
 Run any script in this repo by passing its path:
 
 ```bash
-aql test/bloom_smoke_test.aql
+boru test/bloom_smoke_test.aql
 ```
 
-This module is verified against aql commit `6185620`; the CI workflow
+This module is verified against boru commit `6185620`; the CI workflow
 (`.github/workflows/test.yml`) pins the same commit.
 
 ---
@@ -56,7 +56,7 @@ Pick `n` (how many distinct items you expect) and `p` (the
 false-positive rate you'll tolerate, in `(0, 0.5]`), and hand them to
 `Bloom.make`:
 
-```aql
+```boru
 import "./bloom.aql"
 def bf ({n: 100000, p: 0.001} Bloom.make end)
 (bf Bloom.params end) print
@@ -77,7 +77,7 @@ numbers are derived: [Explanation → Sizing](explanation.md#sizing-the-filter).
 `Bloom.add` records an item (any value — it is stringified internally);
 `Bloom.contains` tests membership and returns a Boolean:
 
-```aql
+```boru
 def _ (bf Bloom.add "user@example.com" end)
 
 print ((bf Bloom.contains "user@example.com" end)) end   # => true
@@ -90,7 +90,7 @@ against your real store if a false positive would be costly.
 To add many items, loop with `each` (push a sentinel `0` so the loop
 body yields a value):
 
-```aql
+```boru
 def _ (iota 1000 each [
   var [[i] bf Bloom.add `key-${i}` end 0 ]
 ])
@@ -100,7 +100,7 @@ def _ (iota 1000 each [
 
 ## Estimate how many distinct items you've added
 
-```aql
+```boru
 print ((bf Bloom.count end)) end
 ```
 
@@ -118,7 +118,7 @@ accessible directly as `bf.added` and is also carried in the
 Two filters built with the **same `(n, p)`** can be unioned. `merge`
 folds the second into the first and returns the first:
 
-```aql
+```boru
 def a ({n: 1000, p: 0.01} Bloom.make end)
 def b ({n: 1000, p: 0.01} Bloom.make end)
 def _a (a Bloom.add "from-a" end)
@@ -143,7 +143,7 @@ parameter. Wrap the call in `do … error …` to recover; inside the
 handler the Error value is on the stack, with `code` and `message`
 fields:
 
-```aql
+```boru
 def a ({n: 1000, p: 0.01} Bloom.make end)
 def b ({n:  500, p: 0.01} Bloom.make end)   # different n → different m
 
@@ -158,8 +158,8 @@ To branch on the code instead, dispatch with `case` —
 `get code case [incompatible_merge/q "rebuild b" "unexpected"]`. In a
 test, assert the failure (or its exact code):
 
-```aql
-import "aql:test"
+```boru
+import "boru:test"
 [a Bloom.merge b end] Assert.throws end
 def e (do [a Bloom.merge b end])
 incompatible_merge/q (e get code) Assert.equal end
@@ -175,7 +175,7 @@ incompatible_merge/q (e get code) Assert.equal end
 `Bloom.encode` produces a jsonic-style string snapshot — parameters plus
 the set bit indices — suitable for logging or persistence:
 
-```aql
+```boru
 def snap ({n: 1000, p: 0.01} Bloom.make end)
 def _ (snap Bloom.add "x" end)
 print ((snap Bloom.encode end)) end
@@ -190,7 +190,7 @@ print ((snap Bloom.encode end)) end
 trip preserves the parameters, the exact `added` count, and every set
 bit:
 
-```aql
+```boru
 def text (snap Bloom.encode end)
 def back (text Bloom.decode end)
 print ((back Bloom.contains "x" end)) end   # => true
@@ -209,10 +209,10 @@ functions, so a snapshot is portable across processes running the
 ## Use the filter from your own script
 
 Import the library by relative path; you do **not** need to import
-`aql:math-util`, `aql:array-util`, `aql:bin-util`, or `aql:struct-util`
+`boru:math-util`, `boru:array-util`, `boru:bin-util`, or `boru:struct-util`
 yourself — `bloom.aql` pulls in its own dependencies:
 
-```aql
+```boru
 import "./bloom.aql"
 
 def bf ({n: 1000, p: 0.01} Bloom.make end)
@@ -228,14 +228,14 @@ is a complete worked example you can copy from.
 
 ## Run the tests
 
-Five suites ship with the module. Run them with `aql`:
+Five suites ship with the module. Run them with `boru`:
 
 ```bash
-aql test/bloom_unit_test.aql   # example-based unit tests — direct (aql:test)
-aql test/bloom_unit_spec.aql   # example-based unit tests — declarative spec format
-aql test/bloom_prop_test.aql   # property tests — direct Test.check-prop form
-aql test/bloom_prop_spec.aql   # property tests — declarative spec format
-aql test/bloom_smoke_test.aql  # end-to-end walk-through over every public word
+boru test/bloom_unit_test.aql   # example-based unit tests — direct (boru:test)
+boru test/bloom_unit_spec.aql   # example-based unit tests — declarative spec format
+boru test/bloom_prop_test.aql   # property tests — direct Test.check-prop form
+boru test/bloom_prop_spec.aql   # property tests — declarative spec format
+boru test/bloom_smoke_test.aql  # end-to-end walk-through over every public word
 ```
 
 The file names follow a consistent convention: `_test.aql` is a direct
@@ -258,19 +258,19 @@ explicitly, which is why it carries the expensive O(m) properties
 (merge, encode, decode) at a smaller run budget.
 
 Each test file ends by asserting `Test.fail-count` is `0`, so a failure
-makes `aql` exit non-zero — which is exactly what the
+makes `boru` exit non-zero — which is exactly what the
 [CI workflow](../.github/workflows/test.yml) checks on every push and pull request.
 
 One more check sits outside this set. `test/divergence/` runs every suite
-through all three of aql's execution surfaces — the interpreter, `aql
-check` (static type-check), and the byte compiler (`aql --compile`) — and
+through all three of boru's execution surfaces — the interpreter, `boru
+check` (static type-check), and the byte compiler (`boru --compile`) — and
 asserts none errors or disagrees. Run it with:
 
 ```bash
 test/divergence/run.sh
 ```
 
-It builds a newer aql (the `--compile` CLI postdates this module's pin) and
+It builds a newer boru (the `--compile` CLI postdates this module's pin) and
 prints a per-suite interpreter/check/bytecode matrix. All five suites are
 green on all three. See [`test/divergence/README.md`](../test/divergence/README.md)
 for the one upstream byte-compiler bug this guards against (a compiled
