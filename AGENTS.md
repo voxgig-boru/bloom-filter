@@ -1,8 +1,8 @@
 # AGENTS.md — using the `Bloom` library
 
 Guidance for an AI coding agent calling this bloom-filter library from an
-AQL project. Every code block below is verified to run against
-`aql-lang/aql` @ `6185620`. If you read nothing else, read
+boru project. Every code block below is verified to run against
+`boru-lang/boru` @ `6185620`. If you read nothing else, read
 [The one calling rule](#the-one-calling-rule) and
 [Common mistakes](#common-mistakes).
 
@@ -18,7 +18,7 @@ is the `Bloom` namespace plus the `BloomFilter` type.
 
 ## Import
 
-```aql
+```boru
 import "./bloom.aql"
 ```
 
@@ -27,12 +27,12 @@ import "./bloom.aql"
   directory where that relative path is valid (adjust the path otherwise).
 - No `end` is needed after `import` on this build (the structure-first
   engine landed); a trailing `end` still works and is harmless.
-- Do **not** import `aql:math-util`, `aql:array-util`, `aql:bin-util`, or
-  `aql:struct-util` yourself — `bloom.aql` imports its own dependencies.
+- Do **not** import `boru:math-util`, `boru:array-util`, `boru:bin-util`, or
+  `boru:struct-util` yourself — `bloom.aql` imports its own dependencies.
 
 ## The one calling rule
 
-AQL is not C/Python/JS: there is no `f(a, b)` and no `obj.method(a)`.
+boru is not C/Python/JS: there is no `f(a, b)` and no `obj.method(a)`.
 Every public `Bloom.*` word takes the **receiver — the `BloomFilter` — as
 its LAST argument**. Because the receiver is last, two orders bind
 correctly:
@@ -49,7 +49,7 @@ receiver Bloom.verb arg1 arg2     # piping form (also fine)
 
 Group a call in parens to use its result as a value:
 
-```aql
+```boru
 def bf ({n: 1000, p: 0.01} Bloom.make)
 def _ (Bloom.add "alice" bf)
 print (Bloom.contains "alice" bf)    # => true
@@ -69,7 +69,7 @@ only for a **bare, ungrouped** call at statement level that is followed by
 more tokens. A stray `end` is harmless — older snippets still carry them —
 but the clean form omits it.
 
-**`aql check`'s `mixed_form_call` info is compatible here.** It nudges
+**`boru check`'s `mixed_form_call` info is compatible here.** It nudges
 toward the all-forward shape; following it while keeping the receiver last
 yields the canonical `Bloom.add "x" bf` — that's correct. Just never let it
 push the receiver in front of the args (`Bloom.add bf "x"`).
@@ -102,7 +102,7 @@ Errors carry a code and message: catch with `do […] error […]` and read
 
 Create, add, query:
 
-```aql
+```boru
 import "./bloom.aql"
 def seen ({n: 10000, p: 0.01} Bloom.make)
 def _ (seen Bloom.add "ada")
@@ -113,7 +113,7 @@ print (seen Bloom.contains "linus")   # => false
 Add many in a loop (`each` body must yield a value — group the call in parens
 and push a `0`):
 
-```aql
+```boru
 def bf ({n: 1000, p: 0.01} Bloom.make)
 def _ (iota 50 each [
   var [[i] (bf Bloom.add (convert String i)) 0 ]
@@ -123,7 +123,7 @@ print (bf Bloom.count)          # => ~50 (an estimate)
 
 Merge two filters built with the **same `(n, p)`**:
 
-```aql
+```boru
 def a ({n: 1000, p: 0.01} Bloom.make)
 def b ({n: 1000, p: 0.01} Bloom.make)
 def _a (a Bloom.add "from-a")
@@ -136,7 +136,7 @@ print (merged Bloom.contains "from-b")   # => true
 Guard an incompatible merge (mismatched `(n, p)` raises
 `incompatible_merge`):
 
-```aql
+```boru
 def a ({n: 1000, p: 0.01} Bloom.make)
 def b ({n:  500, p: 0.01} Bloom.make)    # different n ⇒ different m
 def result (do [a Bloom.merge b] error [
@@ -147,8 +147,8 @@ print (result)
 
 In a test, assert the failure (or the specific code) instead:
 
-```aql
-import "aql:test"
+```boru
+import "boru:test"
 [a Bloom.merge b] Assert.throws
 def e (do [a Bloom.merge b])
 incompatible_merge/q (e get code) Assert.equal
@@ -156,7 +156,7 @@ incompatible_merge/q (e get code) Assert.equal
 
 Persist and reload through the snapshot string:
 
-```aql
+```boru
 def snap (bf Bloom.encode)
 def back (snap Bloom.decode)
 print (back Bloom.contains "ada")        # => true
@@ -166,7 +166,7 @@ print (back Bloom.contains "ada")        # => true
 
 | ✗ Don't write | ✓ Write | Why |
 |---------------|---------|-----|
-| `Bloom.contains(bf, "x")` | `(bf Bloom.contains "x")` | No `f(a,b)` syntax in AQL. |
+| `Bloom.contains(bf, "x")` | `(bf Bloom.contains "x")` | No `f(a,b)` syntax in boru. |
 | `bf.contains("x")` | `(bf Bloom.contains "x")` | No method-call syntax. |
 | `Bloom.add bf "x"` (receiver *first*, all-forward) | `Bloom.add "x" bf` (forward, receiver last) or `bf Bloom.add "x"` (piping) | The receiver is the **last** param; putting it first binds it as the *item* and silently misbinds. The `mixed_form_call` nudge is fine — it points at the forward form. |
 | `(bf Bloom.contains "x" end)` everywhere | `(bf Bloom.contains "x")` | Parens already terminate the call — the `end` is redundant. Reserve `end` for a bare statement-level call followed by more tokens. |
@@ -175,7 +175,7 @@ print (back Bloom.contains "ada")        # => true
 | `a Bloom.merge b` with different `(n, p)` | build both with identical `(n, p)` | Mismatched `m`/`k` raises `incompatible_merge` (read `e get message` for which). |
 | `make BloomFilter {…}` | `{n, p} Bloom.make` | Construct only via `Bloom.make` (the class has a required internal `bits` field). |
 | `(bf Bloom.count)` for an exact count | read `bf.added` (or `added:` in `Bloom.encode`) | `count` is an estimate; `added` is the exact insert count. |
-| `import "aql:math-util"` in your script | nothing | `bloom.aql` imports its own deps. |
+| `import "boru:math-util"` in your script | nothing | `bloom.aql` imports its own deps. |
 
 A note on `print` while debugging: `print` collects its argument *forward*,
 so write `print (value)` — verb first, one value per statement — and output
@@ -190,4 +190,4 @@ appears in source order. The **postfix** chain `(a) print (b) print` reverses
   shapes, argument order, return types).
 - `docs/how-to.md` — task recipes (sizing, merge, persist, test).
 - `test/bloom_smoke_test.aql` — a complete, runnable worked example.
-- `dx-report.md` — known AQL-runtime gotchas observed with this build.
+- `dx-report.md` — known boru-runtime gotchas observed with this build.

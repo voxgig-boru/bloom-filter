@@ -1,9 +1,9 @@
 # Tutorial: your first bloom filter
 
-This is a hands-on lesson. By the end you will have built a small AQL
+This is a hands-on lesson. By the end you will have built a small boru
 script that tracks which usernames it has seen, queried it, and watched
 a false positive appear. You need no prior knowledge of bloom filters —
-just a working `aql` binary (see
+just a working `boru` binary (see
 [How-to → Install and run](how-to.md#install-and-run-aql)) and this
 repository checked out.
 
@@ -19,7 +19,7 @@ build it up in pieces and run it after each step.
 
 Create a file `seen.aql` next to `bloom.aql` with this content:
 
-```aql
+```boru
 import "./bloom.aql"
 
 # Print one value per statement, fully grouped — `print (value) end` —
@@ -35,7 +35,7 @@ expect (10 000), and `p` is the false-positive rate you will tolerate
 (1 %). Run it:
 
 ```console
-$ aql seen.aql
+$ boru seen.aql
 params:      {k:7 m:95851 n:10000 p:0.01}
 ```
 
@@ -52,14 +52,14 @@ Add three usernames. Each `add` call mutates the filter in place; we
 bind the returned filter to throwaway names (`_1`, `_2`, `_3`) just to
 keep the stack clean. Append below the `params:` line:
 
-```aql
+```boru
 def _1 (seen Bloom.add "ada" end)
 def _2 (seen Bloom.add "grace" end)
 def _3 (seen Bloom.add "alan" end)
 ```
 
 Nothing prints yet — `add` just records the items. Note the `end` after
-each call: AQL words look ahead for arguments, and `end` marks where the
+each call: boru words look ahead for arguments, and `end` marks where the
 call stops. Forget it and the next token gets swallowed as an argument.
 
 ---
@@ -68,7 +68,7 @@ call stops. Forget it and the next token gets swallowed as an argument.
 
 Now query it. `Bloom.contains` returns a Boolean:
 
-```aql
+```boru
 print (`ada seen?    ${(seen Bloom.contains "ada" end)}`) end
 print (`grace seen?  ${(seen Bloom.contains "grace" end)}`) end
 print (`linus seen?  ${(seen Bloom.contains "linus" end)}`) end
@@ -77,7 +77,7 @@ print (`linus seen?  ${(seen Bloom.contains "linus" end)}`) end
 Run the whole file:
 
 ```console
-$ aql seen.aql
+$ boru seen.aql
 params:      {k:7 m:95851 n:10000 p:0.01}
 ada seen?    true
 grace seen?  true
@@ -95,12 +95,12 @@ forgets something you added, so a "no" is always correct.
 The filter can estimate its own cardinality without storing the items.
 Add:
 
-```aql
+```boru
 print (`distinct ~   ${(seen Bloom.count end)}`) end
 ```
 
 ```console
-$ aql seen.aql
+$ boru seen.aql
 ...
 distinct ~   3
 ```
@@ -123,7 +123,7 @@ Let's measure it. Create a second file `falsepos.aql` that sizes a
 filter for 50 items at a 10 % rate, fills it with exactly those 50
 items, then queries 1 000 keys that were never added:
 
-```aql
+```boru
 import "./bloom.aql"
 
 def bf ({n: 50, p: 0.1} Bloom.make end)
@@ -143,7 +143,7 @@ print (`false positives among 1000 un-added keys: ${(0 hits [add end] fold)}`) e
 ```
 
 ```console
-$ aql falsepos.aql
+$ boru falsepos.aql
 params: {k:3 m:240 n:50 p:0.1}
 false positives among 1000 un-added keys: 97
 ```

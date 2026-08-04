@@ -1,8 +1,8 @@
-# Performance baseline — `Bloom` on compiled AQL
+# Performance baseline — `Bloom` on compiled boru
 
-Baseline captured against `aql-lang/aql` `main` (branch
-`claude/voxgig-aql-baseline-m2nct6`), the build on which the library and **all
-five** of its test suites run **fully bytecode-compiled** (`aql
+Baseline captured against `boru-lang/boru` `main` (branch
+`claude/voxgig-boru-baseline-m2nct6`), the build on which the library and **all
+five** of its test suites run **fully bytecode-compiled** (`boru
 --force-compile`) with no refusals — verified byte-identical to the
 interpreter. See `aql-full-compilation-prompt.md` for the compilation work that
 made this possible.
@@ -37,14 +37,14 @@ the double-hashing index loop and the bit-set/bit-test inner loops to bytecode.
 The example-based suites (`unit_test`, `smoke`, `unit_spec`) speed up 3.6–7×
 because most of their time is spent in library operations. The property suites
 (`prop_test`, `prop_spec`) barely move: their wall-clock is dominated by the
-`aql:test` property framework (generation, shrinking, fixed run counts), not by
+`boru:test` property framework (generation, shrinking, fixed run counts), not by
 the library code the compiler accelerates.
 
 ## Reproducing
 
 ```bash
 # fully-compiled core workload
-aql --force-compile <(cat <<'EOF'
+boru --force-compile <(cat <<'EOF'
 import "./bloom.aql"
 def bf ({n: 5000, p: 0.01} Bloom.make)
 def _add  (iota 3000 each [ var [[i] (bf Bloom.add (convert String i)) 0 ] ])
@@ -55,8 +55,8 @@ EOF
 
 # per-suite: compare the two surfaces
 for s in test/*.aql; do
-  time aql --no-compile   "$s" >/dev/null
-  time aql --force-compile "$s" >/dev/null
+  time boru --no-compile   "$s" >/dev/null
+  time boru --force-compile "$s" >/dev/null
 done
 ```
 

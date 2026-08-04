@@ -1,11 +1,11 @@
-# Developer-experience report: bloom-filter on AQL
+# Developer-experience report: bloom-filter on boru
 
 **Date:** 2026-06-11 (second round)
-**AQL build under test:** `aql-lang/aql` @ `7193a7d3`
+**boru build under test:** `boru-lang/boru` @ `7193a7d3`
 (`7193a7d3c69857207e44b4bd53541b9b0d4348aa`, main as of 2026-06-11;
 39 commits past `958c379b`, which this report previously covered;
 built locally with `GOFLAGS=-mod=mod`; version string now reports
-`aql 0.1.0-dev (git 7193a7d3c698)`).
+`boru 0.1.0-dev (git 7193a7d3c698)`).
 **Context:** re-verification round. The first 2026-06-11 report (at
 `958c379b`) filed eight issues after migrating this module to the
 class/Array/raise surface. Six of the eight — including all three
@@ -20,9 +20,9 @@ Severity: **🔴 high** (silent wrong results / crash / blocks a use case) ·
 
 ---
 
-## Update (DX-driven aql fixes)
+## Update (DX-driven boru fixes)
 
-A later aql HEAD split the accessor family: `get`/`getr` now **evaluate**
+A later boru HEAD split the accessor family: `get`/`getr` now **evaluate**
 their key (so `lst get i` reads the bound variable `i`), while literal
 bare-word field access moved to the new `.field` / `!.field` sugar
 (lowering to `dot`/`dotr`), with the quoted-atom `get field/q` form kept
@@ -35,9 +35,9 @@ a bound receiver and `code` is a literal field) became `e.code`. No
 `comp/r` box-pattern workaround applies here — this library does not use
 `comp/r`, so nothing of that kind was removed (that cleanup is specific to
 the sort/stats modules). Verification additionally depends on three
-upstream fixes carried by the local aql build under which this was checked
+upstream fixes carried by the local boru build under which this was checked
 — the `comp/r` frame over-pop fix, `StructUtil.parse` float fidelity, and
-the checker `no_signature` fix; the migrated suites and `aql check` are
+the checker `no_signature` fix; the migrated suites and `boru check` are
 green only on a build carrying them.
 
 ---
@@ -45,12 +45,12 @@ green only on a build carrying them.
 ## Fixed since the `958c379b` report
 
 - **🔴→✅ Guard `if` + following `def`: guards fire first now**
-  (aql `00cb7a79`, "guards fire before the next statement"). The
+  (boru `00cb7a79`, "guards fire before the next statement"). The
   defining repro — an else-less validation `if` whose `raise` was
   pre-empted by eager evaluation of the next `def` statement — now
   raises the guard's own error:
 
-  ```aql
+  ```boru
   def t fn [ [x:Any] [Integer] [
     if ((x is Float) not) [
       def m "not a float"
@@ -65,7 +65,7 @@ green only on a build carrying them.
   `bloom.aql` keeps the explicit empty else `[]` on its guards anyway —
   it costs nothing, reads as intent, and stays correct on older builds.
 
-- **🔴→✅ Class-field defaults are per-instance** (aql `607cd1b9`).
+- **🔴→✅ Class-field defaults are per-instance** (boru `607cd1b9`).
   A mutable schema default (`store:(flex {})`) is no longer one shared
   value: writing through one instance is invisible to another. The
   Python-style mutable-default trap is gone. (`BloomFilter` still
@@ -77,26 +77,26 @@ green only on a build carrying them.
   `make Object {}` on the final stack prints `Object{}` instead of
   SIGSEGV-ing the interpreter.
 
-- **🟡→✅ `raise` accepts template-string messages** (aql `00cb7a79`,
+- **🟡→✅ `raise` accepts template-string messages** (boru `00cb7a79`,
   "templates fill typed slots"). Both the bare and parenthesised forms
   now work, with the code and interpolated message intact:
 
-  ```aql
+  ```boru
   raise bad_input `got ${t}`        # => bad_input, message "got x"
   ```
 
   The bind-first idiom (`def msg …` then `raise code msg`) is no longer
   required; this module keeps it for back-compat and readability.
 
-- **🟢→✅ `getr` raises the documented `not_found`** (aql `93ebcd40`;
+- **🟢→✅ `getr` raises the documented `not_found`** (boru `93ebcd40`;
   was `getr_error`, contradicting REFERENCE.md).
 
-- **🟢→✅ `StructUtil.jsonify` emits Floats as JSON numbers** (aql
+- **🟢→✅ `StructUtil.jsonify` emits Floats as JSON numbers** (boru
   `862546fd`); a `jsonify` → `parse` round trip preserves the Float
   type now. (`Bloom.encode` continues to use canon — unchanged, just
   no longer the only type-preserving option.)
 
-Also fixed without having been formally filed: `aql -version` now
+Also fixed without having been formally filed: `boru -version` now
 stamps the git commit (`1981f601`), so "which build am I on?" — a
 recurring nuisance across these reports — answers itself.
 
@@ -108,7 +108,7 @@ recurring nuisance across these reports — answers itself.
 
 Unchanged through three builds:
 
-```aql
+```boru
 (1 add 1) print (2 add 2) print     # prints 4 then 2 — the first
                                     # print collects (2 add 2)
 ```
@@ -117,7 +117,7 @@ The reliable idiom remains one fully-grouped value per statement —
 `print (`label: ${value}`) end` — with which output appears strictly
 in source order. Every print in this module's tests and docs uses it.
 
-### 2. ✅ `aql check` is now gating-ready (resolved on the pinned build)
+### 2. ✅ `boru check` is now gating-ready (resolved on the pinned build)
 
 The check-mode false positives are **gone** on the current pin. Two upstream
 re-pins cleared them: `2342477` ("checker-accuracy fixes: 0 check
@@ -130,35 +130,35 @@ info"). Both blockers this section tracked are fixed:
 - the `unused_def` cascade on the words reachable only through the
   `export "Bloom" {…}` map — the checker now traces those exports as uses.
 
-`aql check bloom.aql` reports **0 errors** (and exits `0`), so it is safe to
+`boru check bloom.aql` reports **0 errors** (and exits `0`), so it is safe to
 gate. **Follow-up:** the CI static-check step in `.github/workflows/test.yml`
-still runs `aql check --soft bloom.aql` with `continue-on-error: true` (an
+still runs `boru check --soft bloom.aql` with `continue-on-error: true` (an
 advisory carried over from when the false positives were real). Dropping
-`--soft` and `continue-on-error` — `run: aql check bloom.aql` — turns it into
+`--soft` and `continue-on-error` — `run: boru check bloom.aql` — turns it into
 a real gate. That edit needs a token with `workflow` scope (as the workflow
 promotion did), so it is left for a maintainer.
 
 ### 3. ✅ Bytecode (`--compile`) each-body block-local divergence — fixed upstream (`407feda`)
 
-> **Resolved 2026-06-24.** The divergence below is **fixed** on aql
+> **Resolved 2026-06-24.** The divergence below is **fixed** on boru
 > `407feda` (the reduced repro is byte-identical between interpreter and
 > `--compile`), along with two short-lived `main` regressions that broke
 > the library on the 2026-06-23 tips — a `None`-in-template interpolation
 > bug and `convert`/fold `no_signature` check false positives (all in
 > `f247557` / `fc47452`; see `aql-backend-report.md` and upstream
 > `design/CLIENT-FIXES-2026-06-24.md`). `test/divergence/run.sh` now pins
-> `407feda` and every suite is clean across interpreter, `aql check` (0
-> errors), and `aql --compile`. The original finding is kept below as the
+> `407feda` and every suite is clean across interpreter, `boru check` (0
+> errors), and `boru --compile`. The original finding is kept below as the
 > record; the unit suite's top-level `_seen` fixture is retained (harmless,
 > and keeps the suite robust on older builds).
 
-Newer aql can run a program through a bytecode backend instead of the
-interpreter, selectable at the CLI: `aql --compile X` (bytecode when
+Newer boru can run a program through a bytecode backend instead of the
+interpreter, selectable at the CLI: `boru --compile X` (bytecode when
 compilable, else a *silent* fallback to the interpreter — documented to be
-identical, "opt-in performance, never semantics") and `aql --force-compile X`
+identical, "opt-in performance, never semantics") and `boru --force-compile X`
 (require the bytecode path, or abort with a refusal reason). A differential
 test (`test/divergence/`, run with `test/divergence/run.sh`) checks the
-contract `aql --compile X == aql X` across this library's suites.
+contract `boru --compile X == boru X` across this library's suites.
 
 Most of it holds — and that is real progress: the loop-free core
 (`make`/`add`/`contains`/`merge`/`encode`/`decode`) now **fully compiles**
@@ -168,8 +168,8 @@ all. The one sharp edge: a compiled `each` body **drops a block-local
 binding** from the enclosing block. Reduced repro (passes on the
 interpreter, wrong under `--compile`):
 
-```aql
-import "aql:test" end
+```boru
+import "boru:test" end
 import "./bloom.aql" end
 [ def bf ({n: 1000, p: 0.01} Bloom.make end)
   def _ (iota 50 each [ var [[i] bf Bloom.add (convert String i) end 0 ] ])
@@ -187,16 +187,16 @@ does *not* fall back to the interpreter, and the wrong result escapes —
 breaking the "identical, never semantics" guarantee. Trigger is narrow: a
 *block-local* `def` referenced from an `each` body. A **top-level** binding
 survives; a single-expression top-level loop is instead *refused* (`each`
-Stage 2/3) and falls back cleanly. Upstream aql bug, not a bloom defect.
+Stage 2/3) and falls back cleanly. Upstream boru bug, not a bloom defect.
 
 The fix on our side is one structural choice: `test/bloom_unit_test.aql`
 builds its bulk fixture (`_seen`) at **top level** rather than inside the
 `Test.test` block — keeping it in scope for the compiler, and (the leading
-underscore) skipping `aql check`'s unused_def false positive for body-only
+underscore) skipping `boru check`'s unused_def false positive for body-only
 defs. With that, every suite is clean across all three surfaces
-(interpreter, `aql check` with 0 errors, and `aql --compile` identical to
-the interpreter); `test/divergence/run.sh` enforces it. Tested against aql
-`c44d994` (the harness builds a newer aql than this module's pin, since the
+(interpreter, `boru check` with 0 errors, and `boru --compile` identical to
+the interpreter); `test/divergence/run.sh` enforces it. Tested against boru
+`c44d994` (the harness builds a newer boru than this module's pin, since the
 bytecode CLI postdates `7193a7d3`). See `test/divergence/README.md`.
 
 ---
@@ -207,7 +207,7 @@ bytecode CLI postdates `7193a7d3`). See `test/divergence/README.md`.
   were fixed within 39 commits, with commit messages that read
   straight off the report ("guards fire before the next statement",
   "per-instance mutable class defaults; open objects render"). A
-  parallel report from the `aql:decision` module got the same
+  parallel report from the `boru:decision` module got the same
   treatment (`1981f601`), and that module moved out of core
   (`a7882da9`).
 - **New language surface since `958c379b`** (not yet exercised by this
@@ -254,5 +254,5 @@ this module's history):
 | — | — | `getr` code ≠ docs (was §6 🟢) | **fixed** (`93ebcd40`) |
 | — | — | `jsonify` stringifies Floats (was §7 🟢) | **fixed** (`862546fd`) |
 | 1 | 🟡 | `print` forward-collection reverses/breaks | unchanged (3rd report) |
-| 2 | ✅ | `aql check`: false `mul` no_signature + export-map `unused_def` | **resolved** on `7b1a4fb` (0 errors; gating-ready) |
-| 3 | ✅ | bytecode `--compile` block-local `each`-body divergence (+ two 2026-06-23 `main` regressions) | **fixed** upstream `f247557`/`fc47452`; harness pin moved to aql `407feda` |
+| 2 | ✅ | `boru check`: false `mul` no_signature + export-map `unused_def` | **resolved** on `7b1a4fb` (0 errors; gating-ready) |
+| 3 | ✅ | bytecode `--compile` block-local `each`-body divergence (+ two 2026-06-23 `main` regressions) | **fixed** upstream `f247557`/`fc47452`; harness pin moved to boru `407feda` |

@@ -90,7 +90,7 @@ only two real hashes. It derives index `i` as:
 index_i = (h1 + i · h2) mod m        for i in 0 … k-1
 ```
 
-`h1` and `h2` come from the native FNV-1a words in `aql:bin-util`:
+`h1` and `h2` come from the native FNV-1a words in `boru:bin-util`:
 `h1` is `BinUtil.fnv32` of the stringified item, and `h2` is the high
 32 bits of `BinUtil.fnv64`, OR'd with 1 so the stride is odd and
 covers all residues mod `m`. This "double hashing" gives `k`
@@ -150,7 +150,7 @@ words, 63 bits per word (bit 63 is the sign bit; staying out of it
 keeps every word a plain non-negative Integer). The FlexList is
 mutated in place through `set` (which, unlike the retired `Array`
 `set`, also returns the list — callers drop the result), and the
-word-level operations come from `aql:bin-util`:
+word-level operations come from `boru:bin-util`:
 `BinUtil.set`/`BinUtil.test` for single bits, `BinUtil.popcount` for
 `count`, and `BinUtil.bor` for `merge` — so the formerly per-bit
 `O(m)` walks now touch one word per 63 bits. Memory is `O(m/63)`
@@ -195,7 +195,7 @@ literal), and every guard `if` carries an explicit empty else `[]`
 else-less `if`, which could pre-empt the guard). Both spellings remain
 correct on every build, so they are kept.
 
-Historical note: on aql `db828ec` there was no way to raise a custom
+Historical note: on boru `db828ec` there was no way to raise a custom
 error at all, and this module signalled merge mismatches by
 dispatching a descriptively-named undefined word
 (`bloom-merge-requires-equal-m`). The `raise` word landed after that

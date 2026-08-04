@@ -1,9 +1,9 @@
-> **STATUS — RESOLVED (2026-07-11) on `aql-lang/aql` `main`.** The library and
-> **all five** test suites now run fully bytecode-compiled (`aql
+> **STATUS — RESOLVED (2026-07-11) on `boru-lang/boru` `main`.** The library and
+> **all five** test suites now run fully bytecode-compiled (`boru
 > --force-compile`) with no refusals, output byte-identical to the interpreter.
 > Two things closed the gap:
 >
-> - **In `aql-lang/aql`:** the dominant refusal is no longer refusal A/B from
+> - **In `boru-lang/boru`:** the dominant refusal is no longer refusal A/B from
 >   the table below but their evolved form — `fn make-bloom: dynamic-scope def
 >   \`k-val\` of unpromoted computed value`. Root cause: `DynEnv` is armed
 >   program-wide by a *later* `do {…}` map body (`Bloom.params`/`encode`), after
@@ -25,15 +25,15 @@
 > Performance baseline for the compiled library: `docs/performance-baseline.md`.
 > The historical work-order below is kept as the record.
 
-# Work prompt for `aql-lang/aql`: make the bloom-filter client library fully compilable
+# Work prompt for `boru-lang/boru`: make the bloom-filter client library fully compilable
 
-**Audience:** an engineer/agent working on the `aql-lang/aql` repo (the
+**Audience:** an engineer/agent working on the `boru-lang/boru` repo (the
 language, not the client library).
-**Goal:** drive the strict bytecode path (`aql --force-compile`) to **accept
-the `voxgig-aql/bloom-filter` library and all five of its test suites** with
+**Goal:** drive the strict bytecode path (`boru --force-compile`) to **accept
+the `voxgig-boru/bloom-filter` library and all five of its test suites** with
 no refusals — i.e. extend the *compilable subset* until bloom-filter lowers
 fully to bytecode, preserving the compile==interpret soundness invariant.
-**Baseline:** `aql` @ `407feda` (= `0b010ae` + the re-verification doc; the
+**Baseline:** `boru` @ `407feda` (= `0b010ae` + the re-verification doc; the
 commit bloom-filter currently pins).
 
 ---
@@ -43,10 +43,10 @@ commit bloom-filter currently pins).
 bloom-filter is one of the three client libraries you already track
 (`design/CLIENT-VERIFICATION-MAIN-2026-06-24.md`). On `407feda` it is:
 
-- **Interpretable** — ✅ all 5 suites pass `aql suite.aql`.
-- **Checkable** — ✅ `aql check` reports **0 errors** on every suite *and* on
-  `aql check bloom.aql` directly (the old export-map false positives are gone).
-- **`--compile`-safe** — ✅ `aql --compile X` is **byte-identical** to the
+- **Interpretable** — ✅ all 5 suites pass `boru suite.aql`.
+- **Checkable** — ✅ `boru check` reports **0 errors** on every suite *and* on
+  `boru check bloom.aql` directly (the old export-map false positives are gone).
+- **`--compile`-safe** — ✅ `boru --compile X` is **byte-identical** to the
   interpreter for every suite and for the library's core operations
   (make/add/contains/count/params/encode/decode/merge). No divergence.
 - **`--force-compile` (strict, no fallback)** — ⚠️ **refuses.** Only
@@ -74,12 +74,12 @@ a regression, full stop.
 Each row: the exact refusal string, the emitter site that raises it, and the
 bloom-filter surface that triggers it. Reproduce with the recipe below.
 
-| # | Refusal (`aql --force-compile`) | Emitter site | Triggered by (bloom-filter) |
+| # | Refusal (`boru --force-compile`) | Emitter site | Triggered by (bloom-filter) |
 |---|---|---|---|
 | **A** | `stack discipline: fn arg result is not on top (call of make-bits)` | `eng/go/lower.go:1010` (`resultNotTop`, the `CALL_USER` operand layout) | `make-bloom` building `make BloomFilter { … bits: (make-bits m-val) … }` — a user-fn-call result seated as a field of a multi-field `make <Class> {…}` after several `def`/guard statements. **Dominant blocker**: gates `make`, `add`, `contains`, `count`, `merge`. |
 | **B** | `unannotated or opaque word do` | `eng/go/emit.go:2004` (`anyDynamicCarrier(outs)`) | `Bloom.params`/`encode` use `do { … }` map-literal bodies; `Bloom.decode` uses `do […] error […]`. The checker types the `do` result as dynamic/opaque, so the emitter won't bake the recorded sig. Gates `params`, `encode`, `decode`, and the `bloom_unit_spec` / `bloom_smoke_test` suites. |
 | **C** | `code-body word each (Stage 2)` | `eng/go/emit.go:1973` | `each`/`fold` whose body references a frame-local **name** (a `def`/param/iterator) when the `PUSH_CLOSURE` path declined — const-bake+re-run is unsound for a name-capturing body (see the comment at that site). Gates `bloom_prop_spec` (and is latent throughout `bloom.aql`'s bit loops, masked by A). |
-| **D** | `code-body word test-test (Stage 2)` / `test-check-prop (Stage 2)` | `eng/go/emit.go:1973` | The `aql:test` framework words that execute the assertion/property bodies. Gates `bloom_unit_test` (and `*_prop_test` via `test-check-prop`). Lower priority — it's the test harness, not the library — but needed for the suites to compile. |
+| **D** | `code-body word test-test (Stage 2)` / `test-check-prop (Stage 2)` | `eng/go/emit.go:1973` | The `boru:test` framework words that execute the assertion/property bodies. Gates `bloom_unit_test` (and `*_prop_test` via `test-check-prop`). Lower priority — it's the test harness, not the library — but needed for the suites to compile. |
 
 Priority order: **A** (unblocks the library's core), then **B**, then **C**,
 then **D**. A and B together make `bloom.aql`'s public API fully lowerable;
@@ -91,7 +91,7 @@ C and D extend that to the suites.
 
 Isolated repros of each construct **already compile** on `407feda`:
 
-```aql
+```boru
 # all of these COMPILE under --force-compile today:
 def t class { a:Array } make t { a: (mk 3) }      # A in isolation
 do {a: 1, b: 2}                                    # B in isolation
@@ -111,17 +111,17 @@ locks it in (see §8 of `COMPILABLE-SUBSET.md`).
 ## Reproduction
 
 ```bash
-# 1. Build aql at the pinned baseline (git is fine; tarball shown for parity
-#    with sandboxes where aql-lang/aql git is egress-blocked)
+# 1. Build boru at the pinned baseline (git is fine; tarball shown for parity
+#    with sandboxes where boru-lang/boru git is egress-blocked)
 REF=407fedad2ea2b30c3dde2f29cfbe60e55f94db4e
 mkdir -p /tmp/aql && curl -fsSL \
-  "https://codeload.github.com/aql-lang/aql/tar.gz/$REF" \
-  | tar -xz -C /tmp/aql --strip-components=1
-( cd /tmp/aql/cmd/go && GOFLAGS=-mod=mod go build -o /tmp/aql-bin ./aql )
+  "https://codeload.github.com/boru-lang/boru/tar.gz/$REF" \
+  | tar -xz -C /tmp/boru --strip-components=1
+( cd /tmp/aql/cmd/go && GOFLAGS=-mod=mod go build -o /tmp/aql-bin ./boru )
 
 # 2. Get the client library and run from its root (so ./bloom.aql resolves)
 mkdir -p /tmp/bloom && curl -fsSL \
-  "https://codeload.github.com/voxgig-aql/bloom-filter/tar.gz/main" \
+  "https://codeload.github.com/voxgig-boru/bloom-filter/tar.gz/main" \
   | tar -xz -C /tmp/bloom --strip-components=1
 cd /tmp/bloom
 
@@ -176,7 +176,7 @@ decrement `refusalCeiling`.
 
 ## Acceptance criteria
 
-1. **Library**: `aql --force-compile` accepts every public operation —
+1. **Library**: `boru --force-compile` accepts every public operation —
    make / add / contains / count / params / encode / decode / merge — with no
    refusal, output byte-identical to the interpreter.
 2. **Suites**: all five `test/*.aql` either fully compile under

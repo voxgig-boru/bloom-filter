@@ -1,15 +1,15 @@
 # Using this template
 
-**Forking `bloom-filter` to start a new AQL library? Read this first, then
+**Forking `bloom-filter` to start a new boru library? Read this first, then
 delete it.**
 
-This repo is a GitHub *template* for a small, single-purpose **AQL library**.
+This repo is a GitHub *template* for a small, single-purpose **boru library**.
 It is also a real, runnable library (a bloom filter), so everything here —
 tests, docs, CI, and the agent configuration — is a working example you adapt
 rather than a skeleton you fill in. Clone it with **“Use this template”**, then
 walk the checklist below.
 
-The pair repo [`trie`](https://github.com/voxgig-aql/trie) follows the same
+The pair repo [`trie`](https://github.com/voxgig-boru/trie) follows the same
 structure for a *multi-module* library; look there if your library ships
 several modules/namespaces.
 
@@ -26,11 +26,11 @@ CLAUDE.md                     Claude Code entrypoint; @-imports AGENTS.md
 README.md                     human landing page
 TEMPLATE.md                   this file — delete after instantiation
 LICENSE                       MIT
-dx-report.md                  AQL-runtime gotchas hit while building THIS library
+dx-report.md                  boru-runtime gotchas hit while building THIS library
 .gitignore
 .claude/
   settings.json               registers the SessionStart hook
-  hooks/session-start.sh      builds aql @ the pinned ref in remote sessions
+  hooks/session-start.sh      builds boru @ the pinned ref in remote sessions
   skills/<lib>-aql/SKILL.md   portable, auto-loaded agent skill (canonical copy)
 .claude-plugin/
   marketplace.json            this repo is also a plugin marketplace
@@ -40,7 +40,7 @@ plugins/<lib>-aql/
 proposals/
   README.md                   slot for upstream-language RFCs (see the file)
 .github/workflows/
-  test.yml                    GitHub Actions: build aql, run every suite + consistency job
+  test.yml                    GitHub Actions: build boru, run every suite + consistency job
 docs/                         Diátaxis docs: tutorial, how-to, reference, explanation
 test/
   <lib>_unit_test.aql         example-based unit tests — imperative (Test.test)
@@ -62,9 +62,9 @@ test/
   multi-module one (e.g. `radix_unit_test.aql`). Every assertion-bearing suite
   ends with the same tail and prints `all green`; smoke suites carry no
   assertion (pass = no error).
-- **Single source of truth for the pinned aql commit:**
-  `.github/workflows/test.yml`’s `env.AQL_REF` (full 40-char SHA). The
-  `consistency` CI job fails if `.claude/hooks/session-start.sh`’s `AQL_REF` or
+- **Single source of truth for the pinned boru commit:**
+  `.github/workflows/test.yml`’s `env.BORU_REF` (full 40-char SHA). The
+  `consistency` CI job fails if `.claude/hooks/session-start.sh`’s `BORU_REF` or
   `api.json`’s `aql_ref` prefix drift from it. Bump the ref in the workflow,
   then update those two and re-run the suites.
 - **Agent docs, layered (kept self-contained, guarded against drift):**
@@ -104,14 +104,14 @@ Replace `<lib>` with your library name (kebab-case, e.g. `skip-list`) and
    `marketplace.json` + `plugin.json` (name, source, description,
    homepage/repository).
 8. **SessionStart hook** — in `.claude/hooks/session-start.sh`, set the smoke
-   path to `test/<lib>_smoke_test.aql`. Set `AQL_REF` to your pinned commit
+   path to `test/<lib>_smoke_test.aql`. Set `BORU_REF` to your pinned commit
    (same value as `.github/workflows/test.yml`).
-9. **CI** — in `.github/workflows/test.yml`, set `env.AQL_REF`, list your suites with clear
+9. **CI** — in `.github/workflows/test.yml`, set `env.BORU_REF`, list your suites with clear
    step labels, point the advisory check at `<lib>.aql`, and update the
    `consistency` job’s plugin paths.
 10. **Docs** — rewrite `docs/*` for your domain; keep the four-mode structure
     and the install anchor.
-11. **`dx-report.md`** — clear it and record the AQL-runtime gotchas *you* hit;
+11. **`dx-report.md`** — clear it and record the boru-runtime gotchas *you* hit;
     they are project-specific.
 12. **`README.md`** — rewrite for your library (drop the “Using this as a
     template” pointer).
@@ -122,5 +122,5 @@ Replace `<lib>` with your library name (kebab-case, e.g. `skip-list`) and
     “Use this template” inherits it and runs it on the first push/PR (just enable
     Actions for the new repo).
 
-When the rename is done, `for f in test/*.aql; do aql "$f"; done` should end
+When the rename is done, `for f in test/*.aql; do boru "$f"; done` should end
 every suite with `all green`.

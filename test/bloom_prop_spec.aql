@@ -1,6 +1,6 @@
 # Property-based tests for bloom-filter — DECLARATIVE SPEC FORMAT.
 #
-# This file deliberately exercises one of aql:test's two property-test
+# This file deliberately exercises one of boru:test's two property-test
 # surfaces: the declarative `PropertySpec`. `Test.prop` builds a spec as
 # *data* —
 #
@@ -18,7 +18,7 @@
 # (merge, encode) that need a smaller run budget live in the
 # direct-code file, while the naturally cheap O(k) invariants live here.
 #
-# GEN-BODY runs with `r` (a seeded aql:rand instance) in scope and must
+# GEN-BODY runs with `r` (a seeded boru:rand instance) in scope and must
 # leave exactly one value on the stack. PROPERTY-BODY takes that value
 # and must return a Boolean. A single false (or an error) fails the
 # property and reports the offending input.
@@ -29,7 +29,7 @@
 #   aql test/bloom_prop_spec.aql
 
 
-import "aql:test" end
+import "boru:test" end
 import "./bloom.aql" end
 
 

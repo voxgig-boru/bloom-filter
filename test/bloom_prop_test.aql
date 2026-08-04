@@ -1,6 +1,6 @@
 # Property-based tests for bloom-filter — DIRECT-CODE FORM.
 #
-# This file deliberately exercises one of aql:test's two property-test
+# This file deliberately exercises one of boru:test's two property-test
 # surfaces: the imperative `Test.check-prop` driver, called directly in
 # code with explicit run / seed / shrink counts —
 #
@@ -23,10 +23,10 @@
 #   aql test/bloom_prop_test.aql
 
 
-import "aql:test" end
-import "aql:array-util" end
-import "aql:math-util" end
-import "aql:string-util" end
+import "boru:test" end
+import "boru:array-util" end
+import "boru:math-util" end
+import "boru:string-util" end
 import "./bloom.aql" end
 
 

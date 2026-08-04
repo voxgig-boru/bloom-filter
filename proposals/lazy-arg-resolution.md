@@ -1,19 +1,19 @@
-# AQL Proposal: Structure-First, Lazy Argument Resolution for Dispatch
+# boru Proposal: Structure-First, Lazy Argument Resolution for Dispatch
 
-**Status:** ✅ Landed upstream. aql pulled this proposal in as
+**Status:** ✅ Landed upstream. boru pulled this proposal in as
 `5fcaf1a0` and implemented it as "engine: structure-first, lazy
 forward-argument resolution" (`66876387`); the behaviour ships in
-`aql @ 958c379b` and later (this module pins `407feda`). The headline fix —
+`boru @ 958c379b` and later (this module pins `407feda`). The headline fix —
 `import "mod"` no longer needs a terminator — is verified in
 [`dx-report.md`](../dx-report.md). One residual case in the same
 family (an else-less guard `if` eagerly collecting a following `def`
 statement) is reported there as §1. The text below is the original
 RFC, kept for the design rationale.
-**Target:** `aql-lang/aql` interpreter (dispatch / overload resolution)
+**Target:** `boru-lang/boru` interpreter (dispatch / overload resolution)
 **Provenance:** surfaced while upgrading the `bloom-filter` module to
-`aql @ db828ec`; recorded as gotcha **N1** in that project's
+`boru @ db828ec`; recorded as gotcha **N1** in that project's
 `dx-report.md`.
-**Build referenced:** `aql @ db828ec` (`db828ecb6ee1d161ff177134478f42c56484f051`).
+**Build referenced:** `boru @ db828ec` (`db828ecb6ee1d161ff177134478f42c56484f051`).
 Every "current behaviour" transcript below was run against that build;
 "proposed behaviour" blocks are design intent and are labelled as such.
 
@@ -21,7 +21,7 @@ Every "current behaviour" transcript below was run against that build;
 
 ## 1. Summary
 
-AQL resolves an overloaded word by **evaluating following tokens to
+boru resolves an overloaded word by **evaluating following tokens to
 discover the argument list, then matching that list against the word's
 signatures**. Because the arguments are computed *before* a signature is
 chosen, resolution can execute code that the chosen signature never
@@ -49,11 +49,11 @@ alternative (§7) — keeps every genuine error loud and precisely located.
 
 ## 2. Background: forward dispatch and overloaded words
 
-AQL is concatenative. A word takes its arguments from the tokens that
+boru is concatenative. A word takes its arguments from the tokens that
 follow it (forward) and/or from the stack. These three forms are
 equivalent (verified):
 
-```aql
+```boru
 (add 2 3) print end     # => 5
 (2 add 3) print end     # => 5
 (2 3 add) print end     # => 5
@@ -86,19 +86,19 @@ has a `String` in `sig[0]` *except* `[String]`.
 
 ## 3. The problem: speculative argument evaluation
 
-### 3.1 Reproduction (current behaviour, `aql @ db828ec`)
+### 3.1 Reproduction (current behaviour, `boru @ db828ec`)
 
-```aql
+```boru
 # bug.aql
-import "aql:string-util"
+import "boru:string-util"
 (StringUtil.indexof " ABC" "B") print end
 ```
 
 ```
-$ aql bug.aql
+$ boru bug.aql
 error: [aql/undefined_word]: undefined word: StringUtil
   --> 2:2
-  1 | import "aql:string-util"
+  1 | import "boru:string-util"
   2 | (StringUtil.indexof " ABC" "B") print end
        ^^^^^^^^^^ undefined word: StringUtil
 ```
@@ -115,16 +115,16 @@ about to bind.
 Add a terminator and it works; the `[String]` overload was right all
 along:
 
-```aql
-import "aql:string-util" end
+```boru
+import "boru:string-util" end
 (StringUtil.indexof " ABC" "B") print end     # => 2
 ```
 
 And a *harmless* follower shows `import` only ever wanted one argument —
 the trailing value is left untouched, not consumed as a second arg:
 
-```aql
-import "aql:string-util" 42
+```boru
+import "boru:string-util" 42
 "after" print end
 # => after
 # => 42        (42 was never an argument to import; it stays on the stack)
@@ -196,7 +196,7 @@ claims, left to right, **once each**. Anything not claimed is left as the
 next expression. Errors in a *claimed* argument propagate normally, with
 their precise source span.
 
-### Precedent: this generalises machinery AQL already has
+### Precedent: this generalises machinery boru already has
 
 `import`'s rename overloads are registered with `NoEvalArgs` / `QuoteArgs`:
 
@@ -224,13 +224,13 @@ argument* to *choosing the signature* in the first place.
 
 Input (the failing program from §3.1, **no terminator**):
 
-```aql
-import "aql:string-util"
+```boru
+import "boru:string-util"
 (StringUtil.indexof " ABC" "B") print end
 ```
 
 **Phase 1 (structure):** the first forward token is the string literal
-`"aql:string-util"`. Its type, `String`, is known from the literal. Among
+`"boru:string-util"`. Its type, `String`, is known from the literal. Among
 `import`'s overloads, the only one whose `sig[0]` is `String` is
 `[String]` — and it has arity 1. *Commit to `[String]`.* The
 parenthesised group on line 2 is never inspected, because `[String]`
@@ -344,48 +344,48 @@ every case.
 
 Behavioural tests that should pass under the proposal:
 
-```aql
+```boru
 # 1. unterminated import followed by a reference to the imported namespace
-import "aql:string-util"
+import "boru:string-util"
 (StringUtil.indexof " ABC" "B") print end          # => 2   (today: error)
 
 # 2. terminated form keeps working
-import "aql:string-util" end
+import "boru:string-util" end
 (StringUtil.upper "hi") print end                  # => HI
 
 # 3. no signature's arguments are evaluated speculatively:
 #    a side-effecting follower must NOT run during import resolution
-import "aql:string-util"
+import "boru:string-util"
 ("only once" print) end                            # prints "only once" exactly once
 
 # 4. genuine errors stay loud and located
-import "aql:string-util" end
+import "boru:string-util" end
 (NoSuchThing.nope 1) print end                     # => undefined word: NoSuchThing at the call site
 
 # 5. existing arity behaviour for shape-unambiguous overloads is unchanged
-import "aql:string-util" 42
+import "boru:string-util" 42
 "after" print end                                  # => after ; 42 left on the stack
 ```
 
-Plus: `aql check` can determine `import`'s selected signature for cases
+Plus: `boru check` can determine `import`'s selected signature for cases
 1, 2, 5 **without** evaluating any argument body.
 
 ---
 
-## Appendix A — verified current transcripts (`aql @ db828ec`)
+## Appendix A — verified current transcripts (`boru @ db828ec`)
 
 ```text
-$ printf 'import "aql:string-util"\n(StringUtil.indexof " ABC" "B") print end\n' | aql /dev/stdin
+$ printf 'import "boru:string-util"\n(StringUtil.indexof " ABC" "B") print end\n' | boru /dev/stdin
 error: [aql/undefined_word]: undefined word: StringUtil  --> 2:2
 
-$ printf 'import "aql:string-util" end\n(StringUtil.indexof " ABC" "B") print end\n' | aql /dev/stdin
+$ printf 'import "boru:string-util" end\n(StringUtil.indexof " ABC" "B") print end\n' | boru /dev/stdin
 2
 
-$ printf 'import "aql:string-util" 42\n"after" print end\n' | aql /dev/stdin
+$ printf 'import "boru:string-util" 42\n"after" print end\n' | boru /dev/stdin
 after
 42
 
-$ printf '(add 2 3) print end\n(2 add 3) print end\n(2 3 add) print end\n' | aql /dev/stdin
+$ printf '(add 2 3) print end\n(2 add 3) print end\n(2 3 add) print end\n' | boru /dev/stdin
 5
 5
 5

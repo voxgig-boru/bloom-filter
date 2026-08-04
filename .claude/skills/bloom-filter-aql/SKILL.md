@@ -1,17 +1,17 @@
 ---
 name: bloom-filter-aql
-description: Use when writing or editing AQL code that calls the Bloom bloom-filter library — Bloom.make / Bloom.add / Bloom.contains / Bloom.count / Bloom.params / Bloom.merge / Bloom.encode / Bloom.decode, or any file that does `import "./bloom.aql"`. Provides the exact AQL calling convention (which is not C/Python/JS), the API with mutation and probabilistic semantics, verified copy-paste idioms, and fixes for the mistakes agents most often make (foreign call syntax like `bf.contains(x)`, putting the receiver *first* in an all-forward `Bloom.add bf x` order that silently misbinds — the receiver goes LAST, over-using `end`, assuming `add` returns a new filter).
+description: Use when writing or editing boru code that calls the Bloom bloom-filter library — Bloom.make / Bloom.add / Bloom.contains / Bloom.count / Bloom.params / Bloom.merge / Bloom.encode / Bloom.decode, or any file that does `import "./bloom.aql"`. Provides the exact boru calling convention (which is not C/Python/JS), the API with mutation and probabilistic semantics, verified copy-paste idioms, and fixes for the mistakes agents most often make (foreign call syntax like `bf.contains(x)`, putting the receiver *first* in an all-forward `Bloom.add bf x` order that silently misbinds — the receiver goes LAST, over-using `end`, assuming `add` returns a new filter).
 ---
 
-# Calling the Bloom bloom-filter library (AQL)
+# Calling the Bloom bloom-filter library (boru)
 
 A probabilistic set: "have I seen this item?" in little memory, with **no
 false negatives** and a tunable false-positive rate. Public surface = the
-`Bloom` namespace. Everything below is verified against `aql @ 6185620`.
+`Bloom` namespace. Everything below is verified against `boru @ 6185620`.
 
 ## Import
 
-```aql
+```boru
 import "./bloom.aql"
 ```
 
@@ -19,12 +19,12 @@ import "./bloom.aql"
   from**, not the importing file. Adjust the relative path accordingly.
 - No `end` is needed after `import` on this build (a trailing `end` is
   harmless).
-- Do **not** import `aql:math-util` / `aql:array-util` / `aql:bin-util` /
-  `aql:struct-util` — the library does it.
+- Do **not** import `boru:math-util` / `boru:array-util` / `boru:bin-util` /
+  `boru:struct-util` — the library does it.
 
 ## The one calling rule
 
-AQL has no `f(a, b)` and no `obj.method(a)`. Every public `Bloom.*` word
+boru has no `f(a, b)` and no `obj.method(a)`. Every public `Bloom.*` word
 takes the **receiver — the `BloomFilter` — as its LAST argument**. Because
 the receiver is last, two orders bind correctly:
 
@@ -50,7 +50,7 @@ Group the call in parens to use its result as a value:
   argument of `print` / `def` / another verb — so a trailing `end` there is
   redundant. Reach for parens; reserve `end` only for a bare statement-level
   call followed by more tokens. (A stray `end` is harmless.)
-- **`aql check`'s `mixed_form_call` info is compatible here.** It nudges
+- **`boru check`'s `mixed_form_call` info is compatible here.** It nudges
   toward the all-forward shape; following it while keeping the receiver last
   yields the canonical `Bloom.add "x" bf` — that's correct. Just never let it
   push the receiver in front of the args (`Bloom.add bf "x"`).
@@ -72,7 +72,7 @@ Construct filters only via `Bloom.make`; treat `BloomFilter` fields as
 read-only. Catch errors with `do […] error […]`; read `e get code` /
 `e get message` in the handler.
 
-By-design notes (AQL semantics that bite here):
+By-design notes (boru semantics that bite here):
 
 - **`eq` is identity, not structural equality.** `Bloom.params` returns a
   fresh `Map`, so comparing two params maps with `eq` is `false` even when
@@ -80,13 +80,13 @@ By-design notes (AQL semantics that bite here):
 - **A `BloomFilter` mutates in place** (`add`/`merge`), unlike Maps/Lists,
   which are immutable and copy-return from `set`/`get`. There is no immutable
   filter copy; keep no "before" alias.
-- **Integer overflow fails loud.** AQL ints are 63-bit and raise
+- **Integer overflow fails loud.** boru ints are 63-bit and raise
   `integer_overflow` rather than wrapping — an absurd `n` to `Bloom.make`
   errors, it does not silently truncate.
 
 ## Idioms (verified)
 
-```aql
+```boru
 import "./bloom.aql"
 def seen ({n: 10000, p: 0.01} Bloom.make)
 def _ (seen Bloom.add "ada")
@@ -96,7 +96,7 @@ print (seen Bloom.contains "linus")   # => false
 
 Add many (each body must yield a value — group the call in parens, push `0`):
 
-```aql
+```boru
 def bf ({n: 1000, p: 0.01} Bloom.make)
 def _ (iota 50 each [
   var [[i] (bf Bloom.add (convert String i)) 0 ]
@@ -105,14 +105,14 @@ def _ (iota 50 each [
 
 Merge (both built with the same `(n, p)`); guard the incompatible case:
 
-```aql
+```boru
 def merged (a Bloom.merge b)
 def safe (do [a Bloom.merge b] error [ get message ])
 ```
 
 Persist and reload:
 
-```aql
+```boru
 def snap (bf Bloom.encode)
 def back (snap Bloom.decode)
 ```
@@ -121,7 +121,7 @@ def back (snap Bloom.decode)
 
 | ✗ Don't | ✓ Do | Why |
 |---------|------|-----|
-| `Bloom.contains(bf, "x")` / `bf.contains("x")` | `(bf Bloom.contains "x")` | AQL has no call/method syntax. |
+| `Bloom.contains(bf, "x")` / `bf.contains("x")` | `(bf Bloom.contains "x")` | boru has no call/method syntax. |
 | `Bloom.add bf "x"` (receiver *first*, all-forward) | `Bloom.add "x" bf` (forward, receiver last) or `bf Bloom.add "x"` (piping) | The receiver is the **last** param; putting it first binds it as the *item* and silently misbinds. The `mixed_form_call` nudge is fine — it points at the forward form. |
 | `(bf Bloom.contains "x" end)` everywhere | `(bf Bloom.contains "x")` | Parens already terminate — the `end` is redundant. |
 | keep a pre-`add` copy of `bf` | none — `add` mutates in place | The argument and the return value are the same object. |
