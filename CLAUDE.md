@@ -38,7 +38,7 @@ mistakes to avoid. Every example there was re-run against boru main @
 - **Import `../bloom.aql` BEFORE `boru:test`** in every suite (and tell
   consumers to do the same). On boru main @ 64c5ab2 `boru:test` mints its
   record types from a fresh type-ID counter, so with `boru:test` imported
-  first every BloomFilter-returning word fails
+  first `Bloom.add` / `Bloom.merge` fail with
   `expected BloomFilter, got BloomFilter`. Importing the library first lets
   the exported `BloomFilter` claim its type ID first. Details, the repro and
   the one-line upstream fix are in `dx-report.md` §M1 ("Migration to boru

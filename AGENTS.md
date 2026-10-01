@@ -13,11 +13,11 @@ boru project. Every code block below was re-run against `boru-lang/boru`
 > other filter as the target.
 
 > **Import `./bloom.aql` BEFORE `boru:test` (upstream defect, boru main @
-> 64c5ab2).** If `import "boru:test"` comes first, the words that return a
-> filter (`Bloom.make`, `Bloom.add`, `Bloom.merge`, `Bloom.decode`) fail
-> with `type_error: …: return value 1: expected BloomFilter, got
-> BloomFilter`, because `boru:test` mints its record types with colliding
-> type IDs. Import this library first and they work: the exported
+> 64c5ab2).** If `import "boru:test"` comes first, `Bloom.add` and
+> `Bloom.merge` fail with `type_error: …: return value 1: expected
+> BloomFilter, got BloomFilter` (and `bf is Bloom.BloomFilter` answers
+> `false`), because `boru:test` mints its record types with colliding type
+> IDs. Import this library first and they work: the exported
 > `BloomFilter` then claims its type ID before `boru:test`'s colliding type
 > does. Programs that do not import `boru:test` are unaffected. See
 > `dx-report.md` §M1.
@@ -199,7 +199,7 @@ print (Bloom.contains "7" back)          # => true
 | `make BloomFilter {…}` | `Bloom.make {n, p}` | Construct only via `Bloom.make` (the class has a required internal `bits` field). |
 | `(Bloom.count bf)` for an exact count | read `bf.added` (or `added:` in `Bloom.encode`) | `count` is an estimate; `added` is the exact insert count. |
 | `import "boru:math-util"` in your script | nothing | `bloom.aql` imports its own deps. |
-| `import "boru:test"` *before* `import "./bloom.aql"` | import `./bloom.aql` first | Upstream defect on boru main @ `64c5ab2`: with `boru:test` first, every filter-returning word fails `expected BloomFilter, got BloomFilter`. |
+| `import "boru:test"` *before* `import "./bloom.aql"` | import `./bloom.aql` first | Upstream defect on boru main @ `64c5ab2`: with `boru:test` first, `Bloom.add` / `Bloom.merge` fail `expected BloomFilter, got BloomFilter`. |
 | `import "./bloom.aql"` from a file in a subdirectory | `import "../bloom.aql"` | Relative imports resolve against the importing file's directory. |
 
 A note on `print` while debugging: `print` collects its argument *forward*,

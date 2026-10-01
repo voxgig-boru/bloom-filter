@@ -254,8 +254,8 @@ collect them. `test/bloom_smoke_test.aql` is a complete worked example
 you can copy from.
 
 If your script also imports `boru:test`, import `./bloom.aql` **first**:
-on boru main @ 64c5ab2, `boru:test` imported first makes every
-filter-returning word fail with `expected BloomFilter, got BloomFilter`
+on boru main @ 64c5ab2, `boru:test` imported first makes `Bloom.add` and
+`Bloom.merge` fail with `expected BloomFilter, got BloomFilter`
 (an upstream type-ID collision — see the note at the top of
 [AGENTS.md](../AGENTS.md)).
 
@@ -301,7 +301,7 @@ push and pull request.
 > check with 0 errors. The four suites that import `boru:test` import
 > `../bloom.aql` **first**, which works around an upstream defect
 > (`boru:test`'s types collide with `BloomFilter`'s type ID, so with
-> `boru:test` first every filter-returning word fails `expected
+> `boru:test` first `Bloom.add` / `Bloom.merge` fail `expected
 > BloomFilter, got BloomFilter`). See `dx-report.md` §M1.
 
 One more check sits outside this set. `test/divergence/run.sh` is the

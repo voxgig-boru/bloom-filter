@@ -23,10 +23,9 @@ import "./bloom.aql"
 - Do **not** import `boru:math-util` / `boru:array-util` / `boru:bin-util` /
   `boru:struct-util` — the library does it.
 - **Import `./bloom.aql` BEFORE `boru:test`** (upstream defect, boru main @
-  `64c5ab2`). With `import "boru:test"` first, the words that return a filter
-  (`make`/`add`/`merge`/`decode`) fail with
-  `expected BloomFilter, got BloomFilter` (`boru:test` mints its types with
-  colliding type IDs). Library first, they work; without `boru:test` they
+  `64c5ab2`). With `import "boru:test"` first, `Bloom.add` and `Bloom.merge`
+  fail with `expected BloomFilter, got BloomFilter` (`boru:test` mints its
+  types with colliding type IDs). Library first, they work; without `boru:test` they
   are fine either way. See `dx-report.md` §M1.
 
 ## The one calling rule
@@ -140,7 +139,7 @@ def back (Bloom.decode snap)
 | `make BloomFilter {…}` | `Bloom.make {n, p}` | Construct only via `Bloom.make`. |
 | `(Bloom.count bf)` for an exact count | read `bf.added` / `Bloom.encode` | `count` is an estimate; `added` is exact. |
 | `import "./bloom.aql"` from `test/` | `import "../bloom.aql"` | Imports resolve against the importing file's directory. |
-| `import "boru:test"` then `import "./bloom.aql"` | import `./bloom.aql` first | Upstream type-ID collision: with `boru:test` first, filter-returning words fail `expected BloomFilter, got BloomFilter`. |
+| `import "boru:test"` then `import "./bloom.aql"` | import `./bloom.aql` first | Upstream type-ID collision: with `boru:test` first, `Bloom.add` / `Bloom.merge` fail `expected BloomFilter, got BloomFilter`. |
 | `(v) print (w) print`, or `"a" print` then `"b" print` | `print (v)`, one per statement | `print` collects forward; the postfix spellings print out of order. |
 
 If the full repo is available, `AGENTS.md`, `api.json` (machine-readable

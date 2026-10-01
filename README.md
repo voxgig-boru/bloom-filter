@@ -25,7 +25,7 @@ print (Bloom.contains "linus" seen)   # => false
 > **Status (2026-10-01, boru main @ `64c5ab2`):** the library and all five
 > suites compile, run green and `boru check` clean. If your program imports
 > `boru:test`, import `./bloom.aql` **before** it: an upstream boru defect
-> (colliding type IDs) otherwise makes filter-returning words fail with
+> (colliding type IDs) otherwise makes `Bloom.add` / `Bloom.merge` fail with
 > `expected BloomFilter, got BloomFilter`. See [`dx-report.md`](dx-report.md) §M1.
 
 > **Forking this to build a new boru library?** This repo is a GitHub

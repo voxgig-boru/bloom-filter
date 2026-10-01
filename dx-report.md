@@ -121,7 +121,14 @@ compares against `core.CanonicalType(r, exp)` — a lookup by ID — and so
 finds `boru:test`'s type instead of `BloomFilter` (`eng/go/vm.go`,
 `checkReturnContract`); the retired interpreter compared `got.Is(exp)` directly,
 which is why the defect stayed invisible until the VM became the only path.
-The same lookup makes `bf is Bloom.BloomFilter` answer `false`.
+The same lookup makes `bf is Bloom.BloomFilter` answer `false`. Per word,
+with `boru:test` imported first on stock main @ `64c5ab2`: `Bloom.add` and
+`Bloom.merge` (which return the filter they were handed) fail the return
+check; `Bloom.make` and `Bloom.decode` (which construct the value through the
+same mis-resolved type) return without error, and `contains` / `count` /
+`params` / `encode` run. So a `boru:test` program that only builds filters
+and asserts a raised error (e.g. the `incompatible_merge` example in
+`AGENTS.md`) passes in either order; anything that adds or merges does not.
 
 **Import order matters when the library exports its type.** The collision
 itself happens in either order (`boru:test`'s counter always restarts), but
