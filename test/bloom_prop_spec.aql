@@ -26,11 +26,11 @@
 # `if` is written all-forward (`if cond [then] [else]`) throughout.
 #
 # Run:
-#   aql test/bloom_prop_spec.aql
+#   boru test/bloom_prop_spec.aql
 
 
 import "boru:test" end
-import "./bloom.aql" end
+import "../bloom.aql" end
 
 
 # --- shared generators ---------------------------------------------
@@ -125,7 +125,11 @@ def _ (specs each [
 
 # --- summary -------------------------------------------------------
 
-"---" print
-"fail count: " print Test.fail-count end print
-0 Test.fail-count end Assert.equal end
-"all green" print
+# One fully-grouped `print (value)` per statement keeps output in source
+# order (a chained `"label" print value print` collects forward and
+# reorders). `Assert.equal expected actual` is the forward form, so a
+# failure reports "expected 0, got N" the right way round.
+print "---"
+print (`fail count: ${(Test.fail-count)}`)
+Assert.equal 0 (Test.fail-count)
+print "all green"

@@ -20,14 +20,14 @@
 #           must return a Boolean.
 #
 # Run:
-#   aql test/bloom_prop_test.aql
+#   boru test/bloom_prop_test.aql
 
 
 import "boru:test" end
 import "boru:array-util" end
 import "boru:math-util" end
 import "boru:string-util" end
-import "./bloom.aql" end
+import "../bloom.aql" end
 
 
 # Shared character set for generated keys.
@@ -40,7 +40,7 @@ def charset "abcdefghijklmnopqrstuvwxyz0123456789"
 # filter, `contains` returns true. This is the bloom filter's hard
 # guarantee — any failure here is a correctness bug.
 
-Test.check-prop "no-false-negatives"
+def _p1 (Test.check-prop "no-false-negatives"
   [r.string charset 8]                                # gen: 8-char key
   [
     var [[s]
@@ -49,8 +49,7 @@ Test.check-prop "no-false-negatives"
       bf Bloom.contains s end
     ]
   ]
-  10 1 0
-end
+  10 1 0)
 
 
 # --- P2. added counter tracks insertion count ---------------------
@@ -58,7 +57,7 @@ end
 # After inserting N distinct items, bf.added == N. (The keys are
 # generated to be distinct via the iota index.)
 
-Test.check-prop "added-equals-insert-count"
+def _p2 (Test.check-prop "added-equals-insert-count"
   [r.int 1 50]                                        # gen: N in [1, 50]
   [
     var [[n]
@@ -73,8 +72,7 @@ Test.check-prop "added-equals-insert-count"
       (bf "added" get) eq n
     ]
   ]
-  10 1 0
-end
+  10 1 0)
 
 
 # --- P3. all inserted items are contained --------------------------
@@ -82,7 +80,7 @@ end
 # Combines P1 and P2 over a generated list of keys: every one of the
 # N inserted distinct keys is contained in the filter afterwards.
 
-Test.check-prop "bulk-no-false-negatives"
+def _p3 (Test.check-prop "bulk-no-false-negatives"
   [r.int 5 30]                                        # gen: N in [5, 30]
   [
     var [[n]
@@ -103,8 +101,7 @@ Test.check-prop "bulk-no-false-negatives"
       n eq (0 hits [add end] fold)
     ]
   ]
-  10 1 0
-end
+  10 1 0)
 
 
 # --- P4. derive-m / derive-k match the textbook formulas ----------
@@ -115,7 +112,7 @@ end
 # Re-deriving these inside the property uses the same math but is
 # computed independently of make-bloom.
 
-Test.check-prop "derived-m-formula"
+def _p4 (Test.check-prop "derived-m-formula"
   [r.int 100 5000]                                    # gen: n in [100, 5000]
   [
     var [[n]
@@ -129,10 +126,9 @@ Test.check-prop "derived-m-formula"
       m-expected eq bf.m
     ]
   ]
-  10 1 0
-end
+  10 1 0)
 
-Test.check-prop "derived-k-formula"
+def _p5 (Test.check-prop "derived-k-formula"
   [r.int 100 5000]                                    # gen: n in [100, 5000]
   [
     var [[n]
@@ -143,8 +139,7 @@ Test.check-prop "derived-k-formula"
       k-expected eq bf.k
     ]
   ]
-  10 1 0
-end
+  10 1 0)
 
 
 # --- P5. merge of (a, b) contains every item added to either -----
@@ -156,7 +151,7 @@ end
 # per call (it walks every bit), so even modest runs add up at
 # n=1000 / m=9586.
 
-Test.check-prop "merge-preserves-membership"
+def _p6 (Test.check-prop "merge-preserves-membership"
   [r.list-of [r.string charset 6] 2]                  # gen: [a-key, b-key]
   [
     var [[pair]
@@ -172,8 +167,7 @@ Test.check-prop "merge-preserves-membership"
       has-a and has-b
     ]
   ]
-  10 1 0
-end
+  10 1 0)
 
 
 # --- P6. encode is non-empty and round-trips structural invariants -
@@ -185,7 +179,7 @@ end
 # Encode walks every bit (O(m) per call), so we keep n small and
 # the run count low. StringUtil.indexof is needle-first / haystack-
 # LAST (it flipped to subject-last after db828ec).
-Test.check-prop "encode-contains-params"
+def _p7 (Test.check-prop "encode-contains-params"
   [r.string charset 8]
   [
     var [[s]
@@ -198,8 +192,7 @@ Test.check-prop "encode-contains-params"
       has-n and has-fp and has-a
     ]
   ]
-  5 1 0
-end
+  5 1 0)
 
 
 # --- P7. decode round-trips encode ---------------------------------
@@ -209,7 +202,7 @@ end
 # trip) still contains the inserted key. Encode and decode are both
 # O(m), so this also runs at a small budget.
 
-Test.check-prop "decode-round-trips-encode"
+def _p8 (Test.check-prop "decode-round-trips-encode"
   [r.string charset 8]
   [
     var [[s]
@@ -222,8 +215,7 @@ Test.check-prop "decode-round-trips-encode"
       params-match and added-match and still-contains
     ]
   ]
-  5 1 0
-end
+  5 1 0)
 
 
 # --- summary -------------------------------------------------------
@@ -245,7 +237,6 @@ def _print-results (all-results each [
   ]
 ])
 print "---"
-print "fail count: "
-print (Test.fail-count end)
-0 (Test.fail-count end) Assert.equal end
+print (`fail count: ${(Test.fail-count)}`)
+Assert.equal 0 (Test.fail-count)
 print "all green"

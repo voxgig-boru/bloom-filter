@@ -7,9 +7,9 @@
 # (value) print` pairs print in the wrong order.
 #
 # Run:
-#   aql test/bloom_smoke_test.aql
+#   boru test/bloom_smoke_test.aql
 
-import "./bloom.aql" end
+import "../bloom.aql" end
 
 print ("--- bloom-filter smoke demo ---") end
 
