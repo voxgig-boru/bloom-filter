@@ -24,8 +24,14 @@
 #   boru test/bloom_unit_spec.aql
 
 
-import "boru:test" end
+# Import the library BEFORE boru:test: works around an upstream boru defect
+# (main @ 64c5ab2) — boru:test mints its record types from a fresh type-ID
+# counter (lang/go/modules/test.go BuildTestModule lacks
+# `modReg.Types.AdoptSeqFrom(parent.Types)`), so with boru:test first every
+# BloomFilter-returning word fails `expected BloomFilter, got BloomFilter`.
+# See dx-report.md M1. Restore any order once fixed upstream.
 import "../bloom.aql" end
+import "boru:test" end
 
 
 # --- the spec suite, built as data ---------------------------------
