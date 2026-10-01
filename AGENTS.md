@@ -12,13 +12,15 @@ boru project. Every code block below was re-run against `boru-lang/boru`
 > rejects it for `add`/`contains`, and for `merge` it silently picks the
 > other filter as the target.
 
-> **Known upstream defect (boru main @ 64c5ab2):** in a program that
-> imports **`boru:test`** as well as this library, the words that return a
-> filter (`Bloom.add`, `Bloom.make`, `Bloom.merge`, `Bloom.decode`) can fail
+> **Import `./bloom.aql` BEFORE `boru:test` (upstream defect, boru main @
+> 64c5ab2).** If `import "boru:test"` comes first, the words that return a
+> filter (`Bloom.make`, `Bloom.add`, `Bloom.merge`, `Bloom.decode`) fail
 > with `type_error: …: return value 1: expected BloomFilter, got
-> BloomFilter` — `boru:test`'s record types are minted with colliding type
-> IDs. Programs that do not import `boru:test` are unaffected. See
-> `dx-report.md` → "Migration to boru main @ 64c5ab2".
+> BloomFilter`, because `boru:test` mints its record types with colliding
+> type IDs. Import this library first and they work: the exported
+> `BloomFilter` then claims its type ID before `boru:test`'s colliding type
+> does. Programs that do not import `boru:test` are unaffected. See
+> `dx-report.md` §M1.
 
 ## What it is
 
@@ -160,12 +162,14 @@ print (result)
 # => Bloom.merge: filters disagree on m (9586 vs 4793); build both with the same (n, p)
 ```
 
-In a test, assert the failure (or the specific code). This block runs
-as-is even with the defect above, because the error is raised before any
-`BloomFilter` is returned:
+In a test, assert the failure (or the specific code). Import the library
+**before** `boru:test` (see the defect note at the top):
 
 ```boru
+import "./bloom.aql"
 import "boru:test"
+def a (Bloom.make {n: 1000, p: 0.01})
+def b (Bloom.make {n:  500, p: 0.01})
 Assert.throws [Bloom.merge b a]
 def e (do [Bloom.merge b a])
 Assert.equal incompatible_merge/q e.code
@@ -195,6 +199,7 @@ print (Bloom.contains "7" back)          # => true
 | `make BloomFilter {…}` | `Bloom.make {n, p}` | Construct only via `Bloom.make` (the class has a required internal `bits` field). |
 | `(Bloom.count bf)` for an exact count | read `bf.added` (or `added:` in `Bloom.encode`) | `count` is an estimate; `added` is the exact insert count. |
 | `import "boru:math-util"` in your script | nothing | `bloom.aql` imports its own deps. |
+| `import "boru:test"` *before* `import "./bloom.aql"` | import `./bloom.aql` first | Upstream defect on boru main @ `64c5ab2`: with `boru:test` first, every filter-returning word fails `expected BloomFilter, got BloomFilter`. |
 | `import "./bloom.aql"` from a file in a subdirectory | `import "../bloom.aql"` | Relative imports resolve against the importing file's directory. |
 
 A note on `print` while debugging: `print` collects its argument *forward*,

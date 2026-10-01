@@ -10,19 +10,25 @@ verified on. **Branch:** `claude/boru-main-migration`.
 `compile_failed` anywhere) and `boru check` reports **0 errors, 0
 warnings** on `bloom.aql` and on every suite (one info each:
 `module_body_executed_in_check`, emitted for every program that imports a
-source module). The smoke suite runs green. The four suites that import
-`boru:test` stop at run time on one upstream defect (§M1 below); a scratch
-boru build carrying the one-line upstream fix runs all five green with the
-suites unchanged.
+source module). **All five suites run green.** The four suites that import
+`boru:test` hit one upstream runtime defect (§M1 below) and work around it
+by importing `../bloom.aql` **before** `boru:test`; a scratch boru build
+carrying the one-line upstream fix runs them green in either order.
 
 | suite | `boru X` (compiled — the only path) | `boru check` |
 |---|---|---|
-| `bloom_unit_test.aql`  | ✗ runtime `type_error` (§M1) | 0 errors |
-| `bloom_unit_spec.aql`  | ✗ runtime `type_error` (§M1) | 0 errors |
-| `bloom_prop_test.aql`  | ✗ 6 of 8 properties fail on the §M1 `type_error` | 0 errors |
-| `bloom_prop_spec.aql`  | ✗ 2 of 5 properties fail on the §M1 `type_error` | 0 errors |
-| `bloom_smoke_test.aql` | ✓ | 0 errors |
+| `bloom_unit_test.aql`  | ✓ all green (library imported before `boru:test`, §M1) | 0 errors |
+| `bloom_unit_spec.aql`  | ✓ all green (library imported before `boru:test`, §M1) | 0 errors |
+| `bloom_prop_test.aql`  | ✓ all green, 8 of 8 properties (library imported first, §M1) | 0 errors |
+| `bloom_prop_spec.aql`  | ✓ all green, 5 of 5 properties (library imported first, §M1) | 0 errors |
+| `bloom_smoke_test.aql` | ✓ (no assertions; does not import `boru:test`) | 0 errors |
 | `bloom.aql` (module)   | — | 0 errors |
+
+With `boru:test` imported first (the order before this migration) the same
+four suites fail: `bloom_unit_test` and `bloom_unit_spec` abort on
+`type_error: bloom-add: return value 1: expected BloomFilter, got
+BloomFilter`, and 6 of 8 / 2 of 5 properties fail on it in the two property
+suites.
 
 ### Breaking changes hit, and what changed here
 
@@ -72,8 +78,13 @@ suites unchanged.
 8. **`Test.check-prop` returns its `PropertyResult` Map.** The suite left
    eight of them as end-of-run stack residue (printed after `all green`);
    each is now bound with `def _pN (…)`.
+9. **Import order of the four `boru:test` suites** (works around §M1, not a
+   language change): `import "../bloom.aql"` now comes before
+   `import "boru:test"`, with a comment naming the defect.
 
-No test case, expected value or tolerance was changed.
+No test case, expected value or tolerance was changed. A mutation check
+confirms the suites still bite: changing one expected value, one spec `out`
+or one property per suite makes each fail with the matching fail count.
 
 ### Open upstream defects
 
@@ -110,21 +121,43 @@ compares against `core.CanonicalType(r, exp)` — a lookup by ID — and so
 finds `boru:test`'s type instead of `BloomFilter` (`eng/go/vm.go`,
 `checkReturnContract`); the retired interpreter compared `got.Is(exp)` directly,
 which is why the defect stayed invisible until the VM became the only path.
-Order of the two imports does not matter. A library that mints three or
-more types before its returned type escapes; `bloom.aql` mints exactly one.
+The same lookup makes `bf is Bloom.BloomFilter` answer `false`.
+
+**Import order matters when the library exports its type.** The collision
+itself happens in either order (`boru:test`'s counter always restarts), but
+the importing registry's ID index keeps the **first** type adopted under an
+ID (`TypeTable.Adopt`, `core/go/typetable.go`), and a module's types are
+adopted only when it *exports* them as bare type literals
+(`adoptEscapedTypes`, `lang/go/native/native_module_module.go`). `bloom.aql`
+exports `BloomFilter` in the `Bloom` map, so importing it **before**
+`boru:test` lets `BloomFilter` claim the ID, and `boru:test`'s colliding
+type is skipped. The minimal repro above does not export `Box`, so there the
+order makes no difference; add `Box` to its export map
+(`export "L" { Box mk: mk/v }`) and `import "./lib.boru"` before
+`import "boru:test"` prints `Class/Box{v:1}`. (An earlier draft of this
+section concluded from the non-exporting repro that order never matters;
+that was wrong for this library.)
 
 Verified fix: the same tree with that one line added after
 `modReg.BaseDir = parent.BaseDir` in `BuildTestModule`, built in a scratch
 directory, runs all five suites green, unchanged, and makes the repro print
 `Class/Box{v:1}`.
 
-Workaround: **not applied.** There is no natural rewrite of the library or
-the suites. Dropping `BloomFilter` from the return contracts would weaken
-the API to dodge a harness bug. A consumer-side workaround does work (define
-three throwaway classes, e.g. `def Pad1 class { z: 0 }` …, after
-`import "boru:test"` and before importing the library, so the program's own
-mints absorb the colliding IDs), but it depends on how many types
-`boru:test` mints internally, so it is recorded here rather than committed.
+Workaround: **applied** — each of the four `boru:test` suites imports
+`../bloom.aql` before `boru:test` (a natural, semantics-preserving reorder,
+commented in place). All five suites then run green on stock main @
+`64c5ab2`, and the behaviour matches the patched build: a probe exercising
+`Test.case` / `Test.spec` / `Test.run-spec` / `Test.prop` /
+`Test.run-property` / `Test.check-prop` plus `Bloom.make` / `Bloom.add`
+gives the same output with the library first on stock main as with
+`boru:test` first on the patched build. Consumers that import `boru:test`
+must do the same; `AGENTS.md`, the skill and `api.json` say so. Dropping
+`BloomFilter` from the return contracts was rejected: it would weaken the
+API to dodge a harness bug. (A fragile alternative for a library that does
+*not* export its type — defining throwaway classes after `boru:test` so the
+program's own mints absorb the colliding IDs — depends on how many types
+`boru:test` mints internally and is not used here.) Remove the reorder
+comments once the upstream fix lands.
 
 Side effect seen in the same report: the diagnostic's `-->` header names
 `bloom.aql` (the callee's file) but prints the **caller's** source lines

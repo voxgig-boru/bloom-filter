@@ -21,7 +21,7 @@
     ],
     "errors": "failures raise coded errors caught with `do [...] error [...]`; read a bound error as e.code / e.message, or in the handler (error on the stack) with a quoted key: get \"code\" / get \"message\" (get evaluates its key, so a bare `get code` is undefined_word). Codes: bad_input (Bloom.make args missing or out of range), incompatible_merge (Bloom.merge filters disagree on m or k), bad_payload (Bloom.decode text is not an encode snapshot)",
     "serialization": "encode produces a jsonic snapshot; decode rebuilds an equivalent filter from it (round-trips n, p, m, k, added, and every set bit). Snapshots are portable across processes on the same module version, not across versions that change the hashing.",
-    "known_defects": "boru main @ 64c5ab2: a program that also imports boru:test can see `type_error: <word>: return value 1: expected BloomFilter, got BloomFilter` from the words that return a filter (boru:test mints its record types from a fresh type-ID counter, colliding with BloomFilter's ID). See dx-report.md."
+    "known_defects": "boru main @ 64c5ab2: import bloom.aql BEFORE boru:test. With boru:test imported first, the words that return a filter fail with `type_error: <word>: return value 1: expected BloomFilter, got BloomFilter` (boru:test mints its record types from a fresh type-ID counter, colliding with BloomFilter's ID); with the library first, its exported BloomFilter claims the ID and they work. See dx-report.md, section M1."
   },
   "modules": {
     "bloom.aql": {

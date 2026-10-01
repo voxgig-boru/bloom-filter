@@ -3,9 +3,9 @@
 > lowering fully to bytecode — is now the only way boru runs anything: since
 > 2026-09-19 the interpreter fallback is gone and `--force-compile` (with
 > `--compile` / `--no-compile`) is retired. On main @ 64c5ab2 every suite
-> compiles (no `compile_failed`) and checks with 0 errors; four suites stop at
-> run time on an upstream `boru:test` type-ID collision, not a compile
-> refusal. Current status: `dx-report.md` → "Migration to boru main @ 64c5ab2
+> compiles (no `compile_failed`), checks with 0 errors and runs green (the four
+> `boru:test` suites import `bloom.aql` first to dodge an upstream `boru:test`
+> type-ID collision — a runtime defect, not a compile refusal). Current status: `dx-report.md` → "Migration to boru main @ 64c5ab2
 > (2026-10-01)". The text below is unchanged.
 
 > **STATUS — RESOLVED (2026-07-11) on `boru-lang/boru` `main`.** The library and

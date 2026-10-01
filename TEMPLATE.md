@@ -106,8 +106,12 @@ test/
   defines a type (`class`, `refine …`) and a suite imports `boru:test`, a word
   that declares that type as its return can fail with
   `expected <T>, got <T>` — `boru:test` mints its record types from a fresh
-  type-ID counter. See this repo’s `dx-report.md`; do not weaken the
-  library’s return types to dodge it.
+  type-ID counter. Workaround: **export the type** from the library's
+  namespace (as `bloom.aql` exports `BloomFilter`) and **import the library
+  before `boru:test`** in every suite — the first exported type to claim an
+  ID wins. (If the type is not exported, import order does not help.) See
+  this repo’s `dx-report.md` §M1; do not weaken the library’s return types
+  to dodge it.
 - **`.aql` module header** opens with: one-line summary, the exported
   namespace(s), a `# --- representation ---` block, a `Calling convention:`
   paragraph, and the `# Imported via …` line.

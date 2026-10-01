@@ -33,11 +33,16 @@ mistakes to avoid. Every example there was re-run against boru main @
   under `boru check X`, and `bloom.aql` must check clean. It builds its own
   boru at main HEAD (codeload tarball) unless given `BORU=/path/to/boru`. See
   its `README.md`.
-- **Current status (main @ 64c5ab2):** everything compiles and checks clean;
-  the four suites that import `boru:test` stop on an upstream type-ID
-  collision (`expected BloomFilter, got BloomFilter`). Details, repro and the
-  one-line upstream fix are in `dx-report.md` ("Migration to boru main @
-  64c5ab2").
+- **Current status (main @ 64c5ab2):** all five suites compile, run green
+  and check with 0 errors; `bloom.aql` checks clean.
+- **Import `../bloom.aql` BEFORE `boru:test`** in every suite (and tell
+  consumers to do the same). On boru main @ 64c5ab2 `boru:test` mints its
+  record types from a fresh type-ID counter, so with `boru:test` imported
+  first every BloomFilter-returning word fails
+  `expected BloomFilter, got BloomFilter`. Importing the library first lets
+  the exported `BloomFilter` claim its type ID first. Details, the repro and
+  the one-line upstream fix are in `dx-report.md` §M1 ("Migration to boru
+  main @ 64c5ab2").
 - Known boru-runtime gotchas are in `dx-report.md`. CI
   (`.github/workflows/test.yml`), the hook, and the divergence harness all
   track boru **main** (no pinned commit); `api.json`'s `verified_against`

@@ -23,10 +23,10 @@ print (Bloom.contains "linus" seen)   # => false
 > **[AGENTS.md](AGENTS.md)**.
 
 > **Status (2026-10-01, boru main @ `64c5ab2`):** the library and all five
-> suites compile and `boru check` clean; the smoke suite runs green. The four
-> suites that import `boru:test` currently stop on an upstream boru defect
-> (`expected BloomFilter, got BloomFilter` — colliding type IDs); see
-> [`dx-report.md`](dx-report.md).
+> suites compile, run green and `boru check` clean. If your program imports
+> `boru:test`, import `./bloom.aql` **before** it: an upstream boru defect
+> (colliding type IDs) otherwise makes filter-returning words fail with
+> `expected BloomFilter, got BloomFilter`. See [`dx-report.md`](dx-report.md) §M1.
 
 > **Forking this to build a new boru library?** This repo is a GitHub
 > template — read **[TEMPLATE.md](TEMPLATE.md)** for the instantiation

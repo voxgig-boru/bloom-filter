@@ -177,10 +177,15 @@ The key is quoted because `get` evaluates its key (a bare `get message`
 looks up a variable named `message`). On an error bound to a name, the
 field sugar reads the same fields: `e.code`, `e.message`. To branch on
 the code instead, dispatch with `case` on `get "code"`. In a test, assert
-the failure (or its exact code):
+the failure (or its exact code). Import the library **before**
+`boru:test` — on boru main @ 64c5ab2 the reverse order trips an upstream
+type-ID collision (see the note at the top of [AGENTS.md](../AGENTS.md)):
 
 ```boru
+import "./bloom.aql"
 import "boru:test"
+def a (Bloom.make {n: 1000, p: 0.01})
+def b (Bloom.make {n:  500, p: 0.01})
 Assert.throws [Bloom.merge b a]
 def e (do [Bloom.merge b a])
 Assert.equal incompatible_merge/q e.code
@@ -248,8 +253,11 @@ tokens on the same statement needs `;` (or `end`) so the word doesn't
 collect them. `test/bloom_smoke_test.aql` is a complete worked example
 you can copy from.
 
-If your script also imports `boru:test`, read the known-defect note at
-the top of [AGENTS.md](../AGENTS.md) first.
+If your script also imports `boru:test`, import `./bloom.aql` **first**:
+on boru main @ 64c5ab2, `boru:test` imported first makes every
+filter-returning word fail with `expected BloomFilter, got BloomFilter`
+(an upstream type-ID collision — see the note at the top of
+[AGENTS.md](../AGENTS.md)).
 
 ---
 
@@ -289,13 +297,12 @@ Each test file ends by asserting `Test.fail-count` is `0` (and prints
 what the [CI workflow](../.github/workflows/test.yml) checks on every
 push and pull request.
 
-> **Status on boru main @ 64c5ab2:** every suite compiles and checks with
-> 0 errors, but only the smoke suite runs green. The four suites that
-> import `boru:test` stop on an upstream defect (`type_error: bloom-add:
-> return value 1: expected BloomFilter, got BloomFilter` — `boru:test`'s
-> types collide with `BloomFilter`'s type ID); a scratch boru build with
-> the one-line upstream fix runs all five green unchanged. See
-> `dx-report.md`.
+> **Status on boru main @ 64c5ab2:** all five suites compile, run green and
+> check with 0 errors. The four suites that import `boru:test` import
+> `../bloom.aql` **first**, which works around an upstream defect
+> (`boru:test`'s types collide with `BloomFilter`'s type ID, so with
+> `boru:test` first every filter-returning word fails `expected
+> BloomFilter, got BloomFilter`). See `dx-report.md` §M1.
 
 One more check sits outside this set. `test/divergence/run.sh` is the
 single-path gate: every suite must exit 0 under `boru X` (compiled — the

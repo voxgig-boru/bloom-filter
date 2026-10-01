@@ -51,27 +51,33 @@ for that one-time build. `BORU_TIMEOUT` (default 600) caps each invocation.
 Sample output (boru main @ 64c5ab2, 2026-10-01):
 
 ```
+[divergence] suites — run (boru X) must exit 0 [+ print 'all green'], check must report 0 errors:
   SUITE                       RUN                     CHECK         SECONDS
-  bloom_unit_test.aql         FAIL(rc=1)              ok            0
-      FAIL add-then-contains — [boru/type_error]: bloom-add: return value 1: expected BloomFilter, got BloomFilter
-  bloom_unit_spec.aql         FAIL(rc=1)              ok            1
-  bloom_prop_test.aql         FAIL(rc=1)              ok            0
-  bloom_prop_spec.aql         FAIL(rc=1)              ok            1
-  bloom_smoke_test.aql        ok                      ok            0
+  bloom_unit_test.aql         ok                      ok            1
+  bloom_unit_spec.aql         ok                      ok            1
+  bloom_prop_test.aql         ok                      ok            1
+  bloom_prop_spec.aql         ok                      ok            3
+  bloom_smoke_test.aql        ok                      ok            1
+
+[divergence] modules — boru check must report 0 errors:
   bloom.aql                   ok
+
+[divergence] PASS — every suite compiles, runs green, and checks clean; every module checks clean.
 ```
 
-Every suite **compiles** (none reports `compile_failed`) and checks with 0
-errors. The four red runs share one upstream runtime defect: `boru:test`'s
-module sub-registry mints its record types from a fresh type-ID counter
-instead of adopting the importing program's, so its types collide with the
-first types the library mints and `BloomFilter` fails its own declared
-return-type check (`expected BloomFilter, got BloomFilter`). The smoke suite,
-which does not import `boru:test`, is green. With the one-line upstream fix
-applied to a scratch build (`modReg.Types.AdoptSeqFrom(parent.Types)` in
-`lang/go/modules/test.go` `BuildTestModule`, matching every other native
-module that mints types) all five suites run green unchanged. Details, the
-minimal repro, and the status of the fix are in `../../dx-report.md`
+Every suite **compiles** (none reports `compile_failed`), runs green and
+checks with 0 errors. One upstream runtime defect is worked around in the
+suites rather than fixed: `boru:test`'s module sub-registry mints its record
+types from a fresh type-ID counter instead of adopting the importing
+program's (`lang/go/modules/test.go` `BuildTestModule` lacks
+`modReg.Types.AdoptSeqFrom(parent.Types)`, which every other type-minting
+native module has), so its types collide with `BloomFilter`'s ID. With
+`import "boru:test"` first, `BloomFilter` fails its own declared return-type
+check (`expected BloomFilter, got BloomFilter`) and the four `boru:test`
+suites go red; so each of them imports `../bloom.aql` **before**
+`boru:test`, which lets the exported `BloomFilter` claim the ID first. A
+scratch build with the one-line upstream fix runs all five green in either
+import order. Details and the minimal repro are in `../../dx-report.md` §M1
 ("Migration to boru main @ 64c5ab2").
 
 ## Background: the divergence this harness used to catch
