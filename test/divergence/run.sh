@@ -17,9 +17,10 @@
 # Why there is no interpreter / `--compile` / `--force-compile` column any
 # more: this harness used to assert that the interpreter, `boru check` and the
 # byte compiler agreed. Upstream retired the interpreter fallback and the
-# flags `--compile`, `--force-compile`, `--no-compile` (and the BORU_COMPILE /
-# BORU_FORCE_COMPILE / BORU_NO_COMPILE env vars) — passing them is now a usage
-# error. With one execution path there is nothing left to diverge from, so
+# flags `--compile`, `--force-compile`, `--no-compile` — passing one is now a
+# usage error ("flag provided but not defined") — and the BORU_COMPILE /
+# BORU_FORCE_COMPILE / BORU_NO_COMPILE env vars, which are now simply ignored.
+# With one execution path there is nothing left to diverge from, so
 # "the suite runs" now MEANS "the suite fully compiles", and the gate is
 # simply run + check. (The directory keeps its old name so CI and docs that
 # call test/divergence/run.sh keep working.)

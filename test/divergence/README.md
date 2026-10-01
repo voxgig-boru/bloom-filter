@@ -22,9 +22,10 @@ and failed on any disagreement. That is gone upstream:
   compiled to bytecode and run on the VM, or it fails with
   `[boru/compile_failed] … this is a compiler defect`. There is no
   interpreter fallback.
-- **The flags are retired.** `--compile`, `--force-compile`, `--no-compile`
-  and the `BORU_COMPILE` / `BORU_FORCE_COMPILE` / `BORU_NO_COMPILE` env vars
-  are usage errors now.
+- **The flags are retired.** `--compile`, `--force-compile` and
+  `--no-compile` are usage errors now (`flag provided but not defined`); the
+  `BORU_COMPILE` / `BORU_FORCE_COMPILE` / `BORU_NO_COMPILE` env vars are
+  retired too and are silently ignored.
 - **`boru X` runs the check first.** A pre-flight `boru check` error blocks
   the run (`-no-check` skips it; this harness never uses it).
 
