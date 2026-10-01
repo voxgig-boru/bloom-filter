@@ -1,14 +1,15 @@
 #!/bin/bash
-# SessionStart hook: ensure the `boru` interpreter is available so the agent can
+# SessionStart hook: ensure the `boru` binary is available so the agent can
 # run this library's scripts and tests. boru has no tagged release, so we build
-# it from source at the commit this library is pinned to (the same ref CI uses).
+# it from source at boru-lang/boru main HEAD (the same ref CI resolves). The
+# CLI module is cmd/go; its thin main package is cmd/go/boru, built as ./boru.
 #
 # Synchronous and idempotent: skips the build if the binary already exists, and
 # caches into the container so later sessions are instant. Progress goes to
 # stderr; stdout is left clean (SessionStart stdout is injected as context).
 set -uo pipefail
 
-# Web sessions are the target; locally a developer already has aql. No-op
+# Web sessions are the target; locally a developer already has boru. No-op
 # elsewhere. (Remove this guard to build everywhere.)
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0
@@ -37,7 +38,7 @@ else
     exit 0
   fi
   if ! command -v go >/dev/null 2>&1; then
-    log "WARNING: Go toolchain not found; cannot build aql. Install Go, or build boru manually (see docs/how-to.md)."
+    log "WARNING: Go toolchain not found; cannot build boru. Install Go, or build boru manually (see docs/how-to.md)."
     exit 0
   fi
   log "Building boru @ $BORU_REF (main HEAD) from source…"

@@ -168,7 +168,9 @@ One subtlety: the `bits` field is declared by *type*
 constructor passes a fresh FlexList. A class-field default is
 evaluated once, at class definition, and that single value would be
 shared by every instance — a mutable default would silently alias all
-filters together (see `dx-report.md` §2). Relatedly, `flex` *aliases*
+filters together (boru has since made class-field defaults per-instance
+— see `dx-report.md`, "Fixed since the `958c379b` report" — but the
+explicit field is still the clearer design). Relatedly, `flex` *aliases*
 the list it is given rather than copying it, so the constructor only
 ever wraps a freshly computed word list.
 
@@ -184,7 +186,9 @@ should round-trip through `encode`/`decode` or build a fresh filter.
 Failures raise coded errors with `raise`: `bad_input` from `make`,
 `incompatible_merge` from `merge`, `bad_payload` from `decode`.
 Handlers catch them with `do […] error […]` and read `code`/`message`
-(plus any payload fields) off the Error value.
+(plus any payload fields) off the Error value — `e.code` on a bound
+error, `get "code"` (quoted: `get` evaluates its key) on the one the
+handler receives.
 
 Two defensive idioms in `bloom.aql` date from runtime sharp edges that
 have since been fixed upstream (both documented with repros in

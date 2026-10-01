@@ -1,3 +1,15 @@
+> **STATUS NOTE — 2026-10-01 (boru main @ 64c5ab2). This report is
+> historical; its three-surface framing is obsolete.** boru no longer has an
+> interpreter execution path: since 2026-09-19 every program compiles to
+> bytecode and runs on the VM, or fails with `[boru/compile_failed]`, and the
+> `--compile` / `--force-compile` / `--no-compile` flags are retired (passing
+> them is a usage error). On main @ 64c5ab2 all five suites **compile** and
+> `boru check` reports 0 errors on every suite and on `bloom.aql`; the smoke
+> suite runs green, and the four suites that import `boru:test` stop on an
+> unrelated upstream runtime defect (colliding type IDs between `boru:test`
+> and `BloomFilter`). Current status: `dx-report.md` → "Migration to boru
+> main @ 64c5ab2 (2026-10-01)". The text below is unchanged.
+
 # boru backend report: interpreter / check / byte compiler on `main`
 
 **Date:** 2026-06-24 (updated)

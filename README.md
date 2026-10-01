@@ -9,17 +9,24 @@ front.
 ```boru
 import "./bloom.aql"
 
-def seen ({n: 10000, p: 0.01} Bloom.make)
-def _ (seen Bloom.add "ada")
+def seen (Bloom.make {n: 10000, p: 0.01})
+def _ (Bloom.add "ada" seen)
 
-print (seen Bloom.contains "ada")     # => true
-print (seen Bloom.contains "linus")   # => false
+print (Bloom.contains "ada" seen)     # => true
+print (Bloom.contains "linus" seen)   # => false
 ```
 
 > **Calling convention — forward args, receiver last:**
-> `Bloom.verb …args bf`. Piping `bf Bloom.verb …args` also works; only
-> receiver-first `Bloom.verb bf …args` misbinds (silently). Details in
+> `Bloom.verb …args bf`. Piping `bf Bloom.verb …args` also works;
+> receiver-first `Bloom.verb bf …args` misbinds (`boru check` rejects it,
+> except for `merge`, where it silently merges the other way). Details in
 > **[AGENTS.md](AGENTS.md)**.
+
+> **Status (2026-10-01, boru main @ `64c5ab2`):** the library and all five
+> suites compile and `boru check` clean; the smoke suite runs green. The four
+> suites that import `boru:test` currently stop on an upstream boru defect
+> (`expected BloomFilter, got BloomFilter` — colliding type IDs); see
+> [`dx-report.md`](dx-report.md).
 
 > **Forking this to build a new boru library?** This repo is a GitHub
 > template — read **[TEMPLATE.md](TEMPLATE.md)** for the instantiation
@@ -50,14 +57,14 @@ filters and just want the API? Jump to the [Reference](docs/reference.md).
 
 | Word | Purpose |
 |------|---------|
-| `{n, p} Bloom.make`      | build a filter sized for capacity `n` at false-positive rate `p` |
-| `bf Bloom.add item`      | insert an item (mutates `bf`) |
-| `bf Bloom.contains item` | test membership → Boolean |
-| `bf Bloom.count`         | estimate distinct items added |
-| `bf Bloom.params`        | report `{n, p, m, k}` |
-| `a Bloom.merge b`        | union two filters with matching `(m, k)` |
-| `bf Bloom.encode`        | serialize to a snapshot string |
-| `text Bloom.decode`      | rebuild a filter from a snapshot string |
+| `Bloom.make {n, p}`      | build a filter sized for capacity `n` at false-positive rate `p` |
+| `Bloom.add item bf`      | insert an item (mutates `bf`) |
+| `Bloom.contains item bf` | test membership → Boolean |
+| `Bloom.count bf`         | estimate distinct items added |
+| `Bloom.params bf`        | report `{n, p, m, k}` |
+| `Bloom.merge b a`        | union `b` into `a` (matching `(m, k)`; mutates `a`) |
+| `Bloom.encode bf`        | serialize to a snapshot string |
+| `Bloom.decode text`      | rebuild a filter from a snapshot string |
 
 Full details, including the calling convention (forward args, receiver
 last), are in the [Reference](docs/reference.md) and [AGENTS.md](AGENTS.md).
@@ -97,18 +104,20 @@ test/bloom_prop_test.aql   property-based tests — direct (Test.check-prop)
 test/bloom_prop_spec.aql   property-based tests — declarative spec format
 test/bloom_smoke_test.aql  end-to-end smoke run over every public word
 docs/                      Diátaxis documentation (above)
-dx-report.md               developer-experience notes (current pin: boru @ 6185620)
+dx-report.md               developer-experience notes (last verified: boru main @ 64c5ab2)
+test/divergence/run.sh     single-path gate: every suite runs (compiled) and checks clean
 proposals/                 language proposals raised from this module's DX
 ```
 
 Test files follow a consistent naming convention: `_test.aql` for
 direct tests (unit or property), `_spec.aql` for declarative specs (unit
-or property).
+or property). The suites import the library as `"../bloom.aql"` — boru
+resolves a relative import against the importing file's directory.
 
 ## Running it
 
-Build the `boru` interpreter, then run any script or test — see
-[How-to → Install and run](docs/how-to.md#install-and-run-aql) and
+Build the `boru` binary, then run any script or test — see
+[How-to → Install and run](docs/how-to.md#install-and-run-boru) and
 [Run the tests](docs/how-to.md#run-the-tests):
 
 ```bash
@@ -119,10 +128,20 @@ boru test/bloom_prop_spec.aql   # property tests — declarative spec format
 boru test/bloom_smoke_test.aql  # end-to-end smoke run
 ```
 
+`boru X` compiles the script to bytecode and runs it (the only execution
+path since boru 2026-09-19), after a static pre-flight check. To gate every
+suite (run + `boru check`, 0 errors) in one go:
+
+```bash
+test/divergence/run.sh                              # builds boru @ main HEAD
+BORU=$HOME/.local/bin/boru test/divergence/run.sh   # or use an existing binary
+```
+
 A GitHub Actions workflow
-([`.github/workflows/test.yml`](.github/workflows/test.yml)) builds boru from a
-pinned commit and runs every suite — plus a `consistency` job (agent-skill
-drift, JSON manifests, and a pinned-ref guard) — on each push and pull request.
+([`.github/workflows/test.yml`](.github/workflows/test.yml)) builds boru at
+the current `main` HEAD (daily, and on each push and pull request) and runs
+every suite, the `test/divergence/run.sh` gate, and a `consistency` job
+(agent-skill drift and JSON manifests).
 
 ## License
 

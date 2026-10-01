@@ -1,5 +1,174 @@
 # Developer-experience report: bloom-filter on boru
 
+## Migration to boru main @ 64c5ab2 (2026-10-01)
+
+**Build under test:** `boru-lang/boru` main @ `64c5ab2` (2026-09-30) —
+1,587 commits past `6185620` (2026-07-21), the build this library was last
+verified on. **Branch:** `claude/boru-main-migration`.
+
+**Result.** `bloom.aql` and all five suites **compile** (no
+`compile_failed` anywhere) and `boru check` reports **0 errors, 0
+warnings** on `bloom.aql` and on every suite (one info each:
+`module_body_executed_in_check`, emitted for every program that imports a
+source module). The smoke suite runs green. The four suites that import
+`boru:test` stop at run time on one upstream defect (§M1 below); a scratch
+boru build carrying the one-line upstream fix runs all five green with the
+suites unchanged.
+
+| suite | `boru X` (compiled — the only path) | `boru check` |
+|---|---|---|
+| `bloom_unit_test.aql`  | ✗ runtime `type_error` (§M1) | 0 errors |
+| `bloom_unit_spec.aql`  | ✗ runtime `type_error` (§M1) | 0 errors |
+| `bloom_prop_test.aql`  | ✗ 6 of 8 properties fail on the §M1 `type_error` | 0 errors |
+| `bloom_prop_spec.aql`  | ✗ 2 of 5 properties fail on the §M1 `type_error` | 0 errors |
+| `bloom_smoke_test.aql` | ✓ | 0 errors |
+| `bloom.aql` (module)   | — | 0 errors |
+
+### Breaking changes hit, and what changed here
+
+1. **`/r` → `/v`** (ADR-011, 2026-08-19). The export map's
+   `make: make-bloom/r` … no longer parsed (`f/r` is now just an unbound
+   slash-bearing name): `boru check bloom.aql` reported 8 ×
+   `undefined_word: undefined word: make-bloom/r`. Now `make-bloom/v` etc.
+2. **Relative imports resolve against the importing file's directory**
+   (run and check alike), not the working directory. Every suite's
+   `import "./bloom.aql"` found nothing, so `Bloom` was undefined
+   (e.g. 36 check errors in the smoke suite). Suites now
+   `import "../bloom.aql"`; docs no longer say "relative to the working
+   directory".
+3. **One execution path.** Since 2026-09-19 a program compiles to bytecode
+   and runs on the VM or fails with `[boru/compile_failed]`; there is no
+   interpreter, and `--compile` / `--force-compile` / `--no-compile` are
+   usage errors. `boru X` also runs the static check first and a check error
+   blocks the run. `test/divergence/run.sh` was rewritten from an
+   interpreter/check/bytecode agreement matrix into a run + check gate.
+4. **`get` evaluates its key.** The documented handler idiom
+   `do […] error [ get message ]` and `e get code` now fail the check with
+   `undefined word: message` / `code`. Docs now use `e.code` / `e.message`
+   on a bound error and `get "message"` (quoted) in a handler.
+5. **Receiver-first misbinds are now loud.** `Bloom.add bf "x"` /
+   `Bloom.contains bf "x"` used to return a plausible wrong answer; now
+   `boru check` reports `uncalled_function: call to 'bloom-add' matched no
+   signature` and the run is blocked. `Bloom.merge a b` (two
+   `BloomFilter`s) is still accepted and merges `a` into `b` — the docs now
+   spell out the direction. The old advice about `boru check`'s
+   `mixed_form_call` nudge is gone: that advisory now fires only for 3+-arg
+   calls whose deepest stack slot is `Any`, never for a `Bloom.*` word.
+6. **Output formats.** `print` of a Map renders JSON-style
+   (`{"n": 1000, "p": 0.01, "m": 9586, "k": 7}`) while template
+   interpolation renders jsonic (`{n:1000 p:0.01 m:9586 k:7}`), and Map
+   keys keep insertion order (the docs showed them sorted). Encode
+   snapshots read `{n:… p:… m:… k:… added:… set:[…]}`; the set-bit indices
+   are unchanged, so snapshots from the old build still decode.
+7. **Suite tails.** `"---" print` followed by
+   `"fail count: " print Test.fail-count end print` collected forward and
+   left `"---"` on the stack (`Assert.equal: expected 2, got ---`). Tails are
+   now one grouped `print (…)` per statement and the forward
+   `Assert.equal 0 (Test.fail-count)`. `Assert.equal`'s forward form is
+   `expected actual`; the old stack spelling `expected actual Assert.equal`
+   bound them the other way round, so failures read
+   `expected 6, got 0`. Only the failure message changes; equality is
+   symmetric. Unit assertions now use the forward form too.
+8. **`Test.check-prop` returns its `PropertyResult` Map.** The suite left
+   eight of them as end-of-run stack residue (printed after `all green`);
+   each is now bound with `def _pN (…)`.
+
+No test case, expected value or tolerance was changed.
+
+### Open upstream defects
+
+**M1. 🔴 `boru:test` mints its types with a colliding type-ID counter**
+(runtime answer bug; not recorded in boru's NUR.md).
+
+Minimal repro (`lib.boru` + `main.boru`):
+
+```boru
+# lib.boru
+def Box class { v: 0 }
+def mk fn [ [n:Integer] [Box] [ make Box {v: n} ] ]
+export "L" { mk: mk/v }
+```
+
+```boru
+# main.boru
+import "boru:test"
+import "./lib.boru"
+print (L.mk 1)
+# => error: [boru/type_error]: mk: return value 1: expected Box, got Box
+# (without the boru:test import: Class/Box{v:1})
+```
+
+Cause: `BuildTestModule` (`lang/go/modules/test.go`) builds its module
+sub-registry with `newDefaultRegistry()` and never calls
+`modReg.Types.AdoptSeqFrom(parent.Types)`, so the record types its preamble
+mints draw IDs from a fresh counter and collide with the first three types
+minted anywhere else in the program. Commit `e69b9ac35` (2026-07-02, "Fix
+minted-type ID collisions across sibling registries") added that call to
+the module-body path and to `parse`, `model`, `matrix-util`, `time-util`,
+`io`, `net` and `minilang`, but not to `boru:test`. The VM's return check
+compares against `core.CanonicalType(r, exp)` — a lookup by ID — and so
+finds `boru:test`'s type instead of `BloomFilter` (`eng/go/vm.go`,
+`checkReturnContract`); the retired interpreter compared `got.Is(exp)` directly,
+which is why the defect stayed invisible until the VM became the only path.
+Order of the two imports does not matter. A library that mints three or
+more types before its returned type escapes; `bloom.aql` mints exactly one.
+
+Verified fix: the same tree with that one line added after
+`modReg.BaseDir = parent.BaseDir` in `BuildTestModule`, built in a scratch
+directory, runs all five suites green, unchanged, and makes the repro print
+`Class/Box{v:1}`.
+
+Workaround: **not applied.** There is no natural rewrite of the library or
+the suites. Dropping `BloomFilter` from the return contracts would weaken
+the API to dodge a harness bug. A consumer-side workaround does work (define
+three throwaway classes, e.g. `def Pad1 class { z: 0 }` …, after
+`import "boru:test"` and before importing the library, so the program's own
+mints absorb the colliding IDs), but it depends on how many types
+`boru:test` mints internally, so it is recorded here rather than committed.
+
+Side effect seen in the same report: the diagnostic's `-->` header names
+`bloom.aql` (the callee's file) but prints the **caller's** source lines
+under it (e.g. `--> …/bloom.aql:56:42` above test-file line 56).
+
+**M2. 🟡 A caught, statically certain error fails compilation.**
+
+```boru
+def C class { x: 0  ys: FlexList }
+def e (do [make C {x: 1}])
+print e.code
+# boru check  => 0 errors (1 info: the same type_error, downgraded because `do` traps it)
+# boru X      => [boru/compile_failed]: … the check pass stopped at [type_error]
+#                make: missing field "ys" for class Class/C — this is a compiler defect
+```
+
+The compile gate stops on a check finding even when the surrounding
+`do […]` traps it at run time (`compileFailedError` in `lang/go/boru.go`
+selects `CaughtAtRuntime` findings deliberately). Not hit by the suites: it
+only affects the documented anti-pattern `make BloomFilter {…}`, which now
+fails at compile time instead of raising a catchable error. Relatedly, the
+runtime `make: missing field` error (reached through a computed map) has no
+`code` field (`e.code` is `None`).
+
+**M3. 🟡 `print` forward collection (§1 below) is still open.** Two postfix
+prints on consecutive lines run out of order: `"a" print` then `"b" print`
+prints `b`, then `a` (the first `print` collects `"b"` forward), and
+`(1 add 1) print (2 add 2) print` prints `4`, then `2`. The verb-first
+`print (value)` idiom remains the reliable one, and every suite and doc uses
+it.
+
+Fixed and re-verified on this build: the §3 bytecode block-local `each`
+binding defect (a block-local filter filled from an `each` body inside a
+`Test.test` block counts 50 of 50), and the `boru check` unused_def false
+positive for defs read only inside code bodies.
+
+Re-verification of the docs: every `boru` code block in `AGENTS.md`,
+`SKILL.md` (both copies, byte-identical), `README.md`, and
+`docs/{tutorial,how-to,reference}.md` was extracted and run against this
+build from a scratch directory; outputs in the `# =>` comments are the
+observed ones.
+
+---
+
 **Date:** 2026-06-11 (second round)
 **boru build under test:** `boru-lang/boru` @ `7193a7d3`
 (`7193a7d3c69857207e44b4bd53541b9b0d4348aa`, main as of 2026-06-11;
