@@ -166,7 +166,7 @@ In a test, assert the failure (or the specific code). Import the library
 **before** `boru:test` (see the defect note at the top):
 
 ```boru
-import "./bloom.aql"
+import "../bloom.aql"     # a suite in test/; a file beside the library uses ./bloom.aql
 import "boru:test"
 def a (Bloom.make {n: 1000, p: 0.01})
 def b (Bloom.make {n:  500, p: 0.01})

@@ -172,7 +172,8 @@ print (ps.m)   # => 9586
 
 ### `Bloom.merge`
 
-Union two filters into the first.
+Union the source filter into the receiver — the **last** argument:
+`Bloom.merge b a` merges `b` into `a`.
 
 | | |
 |--|--|

@@ -182,7 +182,7 @@ the failure (or its exact code). Import the library **before**
 type-ID collision (see the note at the top of [AGENTS.md](../AGENTS.md)):
 
 ```boru
-import "./bloom.aql"
+import "../bloom.aql"     # a suite in test/; a file beside the library uses ./bloom.aql
 import "boru:test"
 def a (Bloom.make {n: 1000, p: 0.01})
 def b (Bloom.make {n:  500, p: 0.01})
