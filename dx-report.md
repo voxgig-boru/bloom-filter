@@ -196,6 +196,35 @@ prints `b`, then `a` (the first `print` collects `"b"` forward), and
 `print (value)` idiom remains the reliable one, and every suite and doc uses
 it.
 
+**Property generators now compile too (2026-10-02, boru-lang/boru#528).**
+Every suite compiled as a program, but 11 runtime callbacks still declined
+their compile stamp and ran on the interpreter — the `Test.check-prop` /
+`Test.prop` generator bodies (`boru -compile-report`: "closure
+storedfn$body: unapplied fn-value in body residual (dynamic apply not
+lowered)"; boru COMPILABLE-SUBSET §5). `bloom_prop_test.aql` declined 8
+(50:3, 67:3, 90:3, 122:3, 138:3, 161:3, 189:3, 212:3), `bloom_prop_spec.aql`
+3 (74:5, 83:5, 112:5); both now decline **0**. The rewrite: a direct member
+draw is grouped — `[(r.int 1 50)]`, `[(r.string charset 8)]`,
+`[ (r.string charset (r.int 1 16)) ]` — and each NESTED generator
+(`r.list-of` over an inner `[r.string …]` body) moved into a named fn whose
+body groups the call (`gen-key-pair` in the test suite, `gen-keys` in the
+spec), called as `[(gen-key-pair r)]` / `[ (gen-keys r) ]`. The two other
+spellings of the nested generator hit known upstream compiler divergences,
+both reproduced on this library's shape: grouped inline,
+`[(r.list-of [r.string charset 6] 2)]` fails every run with `undefined word:
+r`; and with the call left bare as the fn's result it compiles but repeats
+the first draw — the merge property would have been handed `["z2nxjz",
+"z2nxjz"]` (the same key into both filters) instead of `["z2nxjz",
+"ebhy3a"]`, silently weakening it. No site was left. Value identity was
+proved with a scratch harness that runs the old and new bodies through
+`Test.check-prop` with a value-printing property (seeds 4, 250, 99999 × 25
+runs), the real property at the suite's own runs/seed/shrinks and at those
+seeds, and — for the spec — the `Test.prop` / `Test.run-property` path at
+its 100 runs / seed 1 / 200 shrinks: the old (interpreted) and new
+(compiled) outputs are byte-identical (1,218 lines), as are failing-property
+shrink reports and the suites' own output. No runs, seed, max-shrinks
+argument or property body changed.
+
 Fixed and re-verified on this build: the §3 bytecode block-local `each`
 binding defect (a block-local filter filled from an `each` body inside a
 `Test.test` block counts 50 of 50), and the `boru check` unused_def false

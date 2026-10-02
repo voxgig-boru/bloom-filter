@@ -39,6 +39,16 @@ import "boru:string-util" end
 # Shared character set for generated keys.
 def charset "abcdefghijklmnopqrstuvwxyz0123456789"
 
+# Generator member calls are grouped — [(r.int 1 50)], not [r.int 1 50]: the
+# bare form declines its compile stamp and runs on the interpreter (boru
+# COMPILABLE-SUBSET §5, boru-lang/boru#528). The one NESTED generator (P5's
+# r.list-of over an inner [r.string …] body) lives in this named fn, whose body
+# GROUPS the call: grouped inline the inner body loses `r`, and left bare as
+# the fn's result it repeats its first draw (open upstream compiler defects).
+# Both forms draw byte-identical values to the old bare bodies for the same
+# seed (dx-report.md).
+def gen-key-pair fn [[r:Map] [List] [ (r.list-of [r.string charset 6] 2) ]]
+
 
 # --- P1. No false negatives ----------------------------------------
 #
@@ -47,7 +57,7 @@ def charset "abcdefghijklmnopqrstuvwxyz0123456789"
 # guarantee — any failure here is a correctness bug.
 
 def _p1 (Test.check-prop "no-false-negatives"
-  [r.string charset 8]                                # gen: 8-char key
+  [(r.string charset 8)]                              # gen: 8-char key
   [
     var [[s]
       def bf ({n: 1000, p: 0.01} Bloom.make end)
@@ -64,7 +74,7 @@ def _p1 (Test.check-prop "no-false-negatives"
 # generated to be distinct via the iota index.)
 
 def _p2 (Test.check-prop "added-equals-insert-count"
-  [r.int 1 50]                                        # gen: N in [1, 50]
+  [(r.int 1 50)]                                      # gen: N in [1, 50]
   [
     var [[n]
       def bf ({n: 1000, p: 0.01} Bloom.make end)
@@ -87,7 +97,7 @@ def _p2 (Test.check-prop "added-equals-insert-count"
 # N inserted distinct keys is contained in the filter afterwards.
 
 def _p3 (Test.check-prop "bulk-no-false-negatives"
-  [r.int 5 30]                                        # gen: N in [5, 30]
+  [(r.int 5 30)]                                      # gen: N in [5, 30]
   [
     var [[n]
       def bf ({n: 1000, p: 0.01} Bloom.make end)
@@ -119,7 +129,7 @@ def _p3 (Test.check-prop "bulk-no-false-negatives"
 # computed independently of make-bloom.
 
 def _p4 (Test.check-prop "derived-m-formula"
-  [r.int 100 5000]                                    # gen: n in [100, 5000]
+  [(r.int 100 5000)]                                  # gen: n in [100, 5000]
   [
     var [[n]
       def p 0.01
@@ -135,7 +145,7 @@ def _p4 (Test.check-prop "derived-m-formula"
   10 1 0)
 
 def _p5 (Test.check-prop "derived-k-formula"
-  [r.int 100 5000]                                    # gen: n in [100, 5000]
+  [(r.int 100 5000)]                                  # gen: n in [100, 5000]
   [
     var [[n]
       def p 0.01
@@ -158,7 +168,7 @@ def _p5 (Test.check-prop "derived-k-formula"
 # n=1000 / m=9586.
 
 def _p6 (Test.check-prop "merge-preserves-membership"
-  [r.list-of [r.string charset 6] 2]                  # gen: [a-key, b-key]
+  [(gen-key-pair r)]                                  # gen: [a-key, b-key]
   [
     var [[pair]
       def a-key (pair get 0)
@@ -186,7 +196,7 @@ def _p6 (Test.check-prop "merge-preserves-membership"
 # the run count low. StringUtil.indexof is needle-first / haystack-
 # LAST (it flipped to subject-last after db828ec).
 def _p7 (Test.check-prop "encode-contains-params"
-  [r.string charset 8]
+  [(r.string charset 8)]
   [
     var [[s]
       def bf ({n: 100, p: 0.05} Bloom.make end)
@@ -209,7 +219,7 @@ def _p7 (Test.check-prop "encode-contains-params"
 # O(m), so this also runs at a small budget.
 
 def _p8 (Test.check-prop "decode-round-trips-encode"
-  [r.string charset 8]
+  [(r.string charset 8)]
   [
     var [[s]
       def bf ({n: 100, p: 0.05} Bloom.make end)

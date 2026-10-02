@@ -46,6 +46,18 @@ import "boru:test" end
 def charset "abcdefghijklmnopqrstuvwxyz0123456789-_"
 def plist   [0.001 0.005 0.01 0.02 0.05 0.1 0.2 0.5]
 
+# Generator member calls are grouped — [ (r.string charset (r.int 1 16)) ],
+# not [ r.string charset (r.int 1 16) ]: the bare form declines its compile
+# stamp and runs on the interpreter (boru COMPILABLE-SUBSET §5,
+# boru-lang/boru#528). The NESTED generator (r.list-of over an inner
+# [r.string …] body) lives in this named fn, whose body GROUPS the call:
+# grouped inline the inner body loses `r`, and left bare as the fn's result it
+# repeats its first draw (open upstream compiler defects). Both forms draw
+# byte-identical values to the old bare bodies for the same seed (dx-report.md).
+def gen-keys fn [[r:Map] [List] [
+  (r.list-of [ r.string charset (r.int 1 12) ] (r.int 1 20))
+]]
+
 
 # --- reporting helper ----------------------------------------------
 
@@ -71,7 +83,7 @@ def specs [
 
   # 1. No false negatives: a key that was just added is always found.
   (Test.prop "add-then-contains"
-    [ r.string charset (r.int 1 16) ]
+    [ (r.string charset (r.int 1 16)) ]
     [ var [[key]
         def bf ({n: 1000, p: 0.01} Bloom.make end)
         def _ (bf Bloom.add key end)
@@ -80,7 +92,7 @@ def specs [
 
   # 2. A fresh filter (no bits set) reports every key as absent.
   (Test.prop "empty-contains-nothing"
-    [ r.string charset (r.int 1 16) ]
+    [ (r.string charset (r.int 1 16)) ]
     [ var [[key]
         def bf ({n: 1000, p: 0.01} Bloom.make end)
         ((bf Bloom.contains key end) not)
@@ -109,7 +121,7 @@ def specs [
   # 5. Bulk no false negatives: every key in a randomly-sized batch is
   #    found after the whole batch is inserted.
   (Test.prop "bulk-add-all-found"
-    [ r.list-of [ r.string charset (r.int 1 12) ] (r.int 1 20) ]
+    [ (gen-keys r) ]
     [ var [[items]
         def bf ({n: 1000, p: 0.01} Bloom.make end)
         def _ (items each [ var [[it] bf Bloom.add it end 0 ] ])
