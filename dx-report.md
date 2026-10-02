@@ -208,14 +208,29 @@ draw is grouped — `[(r.int 1 50)]`, `[(r.string charset 8)]`,
 `[ (r.string charset (r.int 1 16)) ]` — and each NESTED generator
 (`r.list-of` over an inner `[r.string …]` body) moved into a named fn whose
 body groups the call (`gen-key-pair` in the test suite, `gen-keys` in the
-spec), called as `[(gen-key-pair r)]` / `[ (gen-keys r) ]`. The two other
-spellings of the nested generator hit known upstream compiler divergences,
-both reproduced on this library's shape: grouped inline,
-`[(r.list-of [r.string charset 6] 2)]` fails every run with `undefined word:
-r`; and with the call left bare as the fn's result it compiles but repeats
-the first draw — the merge property would have been handed `["z2nxjz",
-"z2nxjz"]` (the same key into both filters) instead of `["z2nxjz",
-"ebhy3a"]`, silently weakening it. No site was left. Value identity was
+spec), called as `[(gen-key-pair r)]` / `[ (gen-keys r) ]`. The other
+spellings of a nested generator go wrong on the compiled lane. Neither of
+the two answer divergences below is recorded upstream: boru's `NUR.md` and
+`COMPILABLE-SUBSET.md` list neither. Every case below was reproduced on this
+library's two shapes with a Go probe (`RunInterp` against
+`RunCompiledReason`):
+- **Grouped inline** (`[(r.list-of [r.string charset 6] 2)]`, or the spec's
+  `[ (r.list-of [ r.string charset (r.int 1 12) ] (r.int 1 20)) ]`): the
+  inner body loses `r`. Compiled, the property reports `ok: false` on its
+  first run with `undefined word: r`, where the interpreter generates the
+  lists. This is an answer divergence.
+- **Bare as the fn's result:** the outcome depends on the shape.
+  - The test suite's fixed-length pair (`r.list-of [r.string charset 6] 2`)
+    compiles but repeats its first draw. At seed 4 the merge property would
+    have been handed `["z2nxjz", "z2nxjz"]` (the same key into both filters)
+    instead of `["z2nxjz", "ebhy3a"]`, silently weakening it.
+  - The spec's computed-length list (`… (r.int 1 20)`) does not repeat. Its
+    generator still declines its stamp through `Test.prop` ("finalize left
+    the unit unstamped"). Through a direct `Test.check-prop`, the whole
+    program fails to compile ("fn g: body leaves extra values (Stage 3
+    lowers in-order results)").
+
+No site was left. Value identity was
 proved with a scratch harness that runs the old and new bodies through
 `Test.check-prop` with a value-printing property (seeds 4, 250, 99999 × 25
 runs), the real property at the suite's own runs/seed/shrinks and at those
@@ -223,7 +238,12 @@ seeds, and — for the spec — the `Test.prop` / `Test.run-property` path at
 its 100 runs / seed 1 / 200 shrinks: the old (interpreted) and new
 (compiled) outputs are byte-identical (1,218 lines), as are failing-property
 shrink reports and the suites' own output. No runs, seed, max-shrinks
-argument or property body changed.
+argument or property body changed. An independent re-check used other seeds:
+3, 77, 4242, 31337 and -5, at 30 runs each, over all 11 sites. It drove every
+body directly, through a `Test.prop` map, and under a failing property with
+200 shrinks. It also ran both real suites at four of those seeds, with the
+spec's stored generators read back from its own `specs` list. The old and
+new outputs were again byte-identical.
 
 Fixed and re-verified on this build: the §3 bytecode block-local `each`
 binding defect (a block-local filter filled from an `each` body inside a

@@ -44,9 +44,9 @@ def charset "abcdefghijklmnopqrstuvwxyz0123456789"
 # COMPILABLE-SUBSET §5, boru-lang/boru#528). The one NESTED generator (P5's
 # r.list-of over an inner [r.string …] body) lives in this named fn, whose body
 # GROUPS the call: grouped inline the inner body loses `r`, and left bare as
-# the fn's result it repeats its first draw (open upstream compiler defects).
-# Both forms draw byte-identical values to the old bare bodies for the same
-# seed (dx-report.md).
+# the fn's result it repeats its first draw. These are open boru compiler
+# defects, not recorded upstream (dx-report.md). Both of the forms used here
+# draw byte-identical values to the old bare bodies for the same seed.
 def gen-key-pair fn [[r:Map] [List] [ (r.list-of [r.string charset 6] 2) ]]
 
 

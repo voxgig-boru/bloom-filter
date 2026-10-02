@@ -50,10 +50,14 @@ def plist   [0.001 0.005 0.01 0.02 0.05 0.1 0.2 0.5]
 # not [ r.string charset (r.int 1 16) ]: the bare form declines its compile
 # stamp and runs on the interpreter (boru COMPILABLE-SUBSET §5,
 # boru-lang/boru#528). The NESTED generator (r.list-of over an inner
-# [r.string …] body) lives in this named fn, whose body GROUPS the call:
-# grouped inline the inner body loses `r`, and left bare as the fn's result it
-# repeats its first draw (open upstream compiler defects). Both forms draw
-# byte-identical values to the old bare bodies for the same seed (dx-report.md).
+# [r.string …] body) lives in this named fn, whose body GROUPS the call.
+# Grouped inline instead, the inner body loses `r` (compiled, the generator
+# raises `undefined word: r`). Left bare as this fn's result, the generator
+# still declines its stamp ("finalize left the unit unstamped"), and through a
+# direct Test.check-prop the whole program fails to compile ("body leaves extra
+# values"). These are open boru compiler defects, not recorded upstream
+# (dx-report.md). Both of the forms used here draw byte-identical values to the
+# old bare bodies for the same seed.
 def gen-keys fn [[r:Map] [List] [
   (r.list-of [ r.string charset (r.int 1 12) ] (r.int 1 20))
 ]]
