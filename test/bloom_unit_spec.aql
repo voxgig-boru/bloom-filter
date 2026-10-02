@@ -21,11 +21,17 @@
 # Only the exported `Bloom` words are used as subjects; no local helpers.
 #
 # Run:
-#   aql test/bloom_unit_spec.aql
+#   boru test/bloom_unit_spec.aql
 
 
+# Import the library BEFORE boru:test: works around an upstream boru defect
+# (main @ 64c5ab2) — boru:test mints its record types from a fresh type-ID
+# counter (lang/go/modules/test.go BuildTestModule lacks
+# `modReg.Types.AdoptSeqFrom(parent.Types)`), so with boru:test first
+# Bloom.add / Bloom.merge fail `expected BloomFilter, got BloomFilter`.
+# See dx-report.md M1. Restore any order once fixed upstream.
+import "../bloom.aql" end
 import "boru:test" end
-import "./bloom.aql" end
 
 
 # --- the spec suite, built as data ---------------------------------
@@ -118,7 +124,11 @@ def _ (specs each [
 
 # --- summary -------------------------------------------------------
 
-"---" print
-"fail count: " print Test.fail-count end print
-0 Test.fail-count end Assert.equal end
-"all green" print
+# One fully-grouped `print (value)` per statement keeps output in source
+# order (a chained `"label" print value print` collects forward and
+# reorders). `Assert.equal expected actual` is the forward form, so a
+# failure reports "expected 0, got N" the right way round.
+print "---"
+print (`fail count: ${(Test.fail-count)}`)
+Assert.equal 0 (Test.fail-count)
+print "all green"

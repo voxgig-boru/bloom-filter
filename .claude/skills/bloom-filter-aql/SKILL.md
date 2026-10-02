@@ -1,13 +1,14 @@
 ---
 name: bloom-filter-aql
-description: Use when writing or editing boru code that calls the Bloom bloom-filter library — Bloom.make / Bloom.add / Bloom.contains / Bloom.count / Bloom.params / Bloom.merge / Bloom.encode / Bloom.decode, or any file that does `import "./bloom.aql"`. Provides the exact boru calling convention (which is not C/Python/JS), the API with mutation and probabilistic semantics, verified copy-paste idioms, and fixes for the mistakes agents most often make (foreign call syntax like `bf.contains(x)`, putting the receiver *first* in an all-forward `Bloom.add bf x` order that silently misbinds — the receiver goes LAST, over-using `end`, assuming `add` returns a new filter).
+description: Use when writing or editing boru code that calls the Bloom bloom-filter library — Bloom.make / Bloom.add / Bloom.contains / Bloom.count / Bloom.params / Bloom.merge / Bloom.encode / Bloom.decode, or any file that does `import "./bloom.aql"`. Provides the exact boru calling convention (which is not C/Python/JS), the API with mutation and probabilistic semantics, verified copy-paste idioms, and fixes for the mistakes agents most often make (foreign call syntax like `bf.contains(x)`, putting the receiver *first* in an all-forward `Bloom.add bf x` order — the receiver goes LAST — merging in the wrong direction, `e get code` instead of `e.code`, over-using `end`, assuming `add` returns a new filter).
 ---
 
 # Calling the Bloom bloom-filter library (boru)
 
 A probabilistic set: "have I seen this item?" in little memory, with **no
 false negatives** and a tunable false-positive rate. Public surface = the
-`Bloom` namespace. Everything below is verified against `boru @ 6185620`.
+`Bloom` namespace. Everything below is verified against boru main @
+`64c5ab2` (2026-10-01).
 
 ## Import
 
@@ -15,12 +16,17 @@ false negatives** and a tunable false-positive rate. Public surface = the
 import "./bloom.aql"
 ```
 
-- Path resolves relative to the **working directory the script runs
-  from**, not the importing file. Adjust the relative path accordingly.
-- No `end` is needed after `import` on this build (a trailing `end` is
-  harmless).
+- Path resolves relative to the **directory of the importing file** (not
+  the working directory), for `boru X` and `boru check X` alike — a test in
+  `test/` writes `import "../bloom.aql"`.
+- No `end` is needed after `import` (a trailing `end` is harmless).
 - Do **not** import `boru:math-util` / `boru:array-util` / `boru:bin-util` /
   `boru:struct-util` — the library does it.
+- **Import `./bloom.aql` BEFORE `boru:test`** (upstream defect, boru main @
+  `64c5ab2`). With `import "boru:test"` first, `Bloom.add` and `Bloom.merge`
+  fail with `expected BloomFilter, got BloomFilter` (`boru:test` mints its
+  types with colliding type IDs). Library first, they work; without `boru:test` they
+  are fine either way. See `dx-report.md` §M1.
 
 ## The one calling rule
 
@@ -41,36 +47,35 @@ receiver Bloom.verb arg1 arg2     # piping form (also fine)
 Group the call in parens to use its result as a value:
 `(Bloom.contains "x" bf)` or `(bf Bloom.contains "x")`.
 
-- **The only wrong order is receiver-*first*, all-forward.**
-  `Bloom.add bf "x"` binds `bf` as the *item* (the receiver slot goes
-  unfilled), so the call *silently* returns the filter unchanged — no error.
-  Never write `Bloom.verb receiver arg`.
-- **Avoid unnecessary `end`.** On this (structure-first) build the parens
-  around a call already terminate it — as does being the complete forward
-  argument of `print` / `def` / another verb — so a trailing `end` there is
-  redundant. Reach for parens; reserve `end` only for a bare statement-level
-  call followed by more tokens. (A stray `end` is harmless.)
-- **`boru check`'s `mixed_form_call` info is compatible here.** It nudges
-  toward the all-forward shape; following it while keeping the receiver last
-  yields the canonical `Bloom.add "x" bf` — that's correct. Just never let it
-  push the receiver in front of the args (`Bloom.add bf "x"`).
+- **Receiver-*first*, all-forward is wrong.** `Bloom.add bf "x"` matches no
+  signature; `boru check` reports `uncalled_function` and `boru X` (which
+  checks first) refuses to run it.
+- **`merge` is the silent case.** Both arguments are `BloomFilter`s, so
+  `Bloom.merge a b` is legal and merges **`a` into `b`**. To merge `b` into
+  `a`, write `Bloom.merge b a` or `a Bloom.merge b`.
+- **Avoid unnecessary `end`.** The parens around a call already terminate
+  it — as does being the complete forward argument of `print` / `def` /
+  another verb — so a trailing `end` there is redundant. Reserve `end` (or
+  `;`) for a bare statement-level call followed by more tokens.
 
 ## API
 
 | Call | Returns | Notes |
 |------|---------|-------|
-| `{n: Integer, p: Float} Bloom.make` | `BloomFilter` | `n` = expected distinct items; `p` = target false-positive rate in `(0, 0.5]`. Bad arguments raise `bad_input`. |
-| `bf Bloom.add item` | the **same** `bf` (mutated in place) | Any value, stringified internally. |
-| `bf Bloom.contains item` | `Boolean` | `false` = **definitely never added**; `true` = *probably* added (false-positive rate ≈ `p`). |
-| `bf Bloom.count` | `Integer` | **Estimate** of distinct items, not a tally. Empty ⇒ `0`. |
-| `bf Bloom.params` | `Map` | `{n, p, m, k}`. |
-| `a Bloom.merge b` | the **same** `a` (mutated) | Union into `a`. Requires identical `m`/`k` (same `(n, p)`); else raises `incompatible_merge`. |
-| `bf Bloom.encode` | `String` | jsonic snapshot; round-trips through `Bloom.decode`. |
-| `text Bloom.decode` | `BloomFilter` | Rebuild from a snapshot; malformed text raises `bad_payload`. |
+| `Bloom.make {n: Integer, p: Float}` | `BloomFilter` | `n` = expected distinct items; `p` = target false-positive rate in `(0, 0.5]`. Bad arguments raise `bad_input`. |
+| `Bloom.add item bf` | the **same** `bf` (mutated in place) | Any value, stringified internally. |
+| `Bloom.contains item bf` | `Boolean` | `false` = **definitely never added**; `true` = *probably* added (false-positive rate ≈ `p`). |
+| `Bloom.count bf` | `Integer` | **Estimate** of distinct items, not a tally. Empty ⇒ `0`. |
+| `Bloom.params bf` | `Map` | `{n, p, m, k}`. |
+| `Bloom.merge b a` | the **same** `a` (mutated) | Union of `b` into the receiver `a` (piping: `a Bloom.merge b`). Requires identical `m`/`k` (same `(n, p)`); else raises `incompatible_merge`. |
+| `Bloom.encode bf` | `String` | jsonic snapshot; round-trips through `Bloom.decode`. |
+| `Bloom.decode text` | `BloomFilter` | Rebuild from a snapshot; malformed text raises `bad_payload`. |
 
 Construct filters only via `Bloom.make`; treat `BloomFilter` fields as
-read-only. Catch errors with `do […] error […]`; read `e get code` /
-`e get message` in the handler.
+read-only. Catch errors with `do […] error […]`: a bound error reads as
+`e.code` / `e.message`; in the handler (error on the stack) use a quoted
+key — `get "code"` / `get "message"` (`get` evaluates its key, so a bare
+`get code` is `undefined word: code`).
 
 By-design notes (boru semantics that bite here):
 
@@ -88,48 +93,54 @@ By-design notes (boru semantics that bite here):
 
 ```boru
 import "./bloom.aql"
-def seen ({n: 10000, p: 0.01} Bloom.make)
-def _ (seen Bloom.add "ada")
-print (seen Bloom.contains "ada")     # => true
-print (seen Bloom.contains "linus")   # => false
+def seen (Bloom.make {n: 10000, p: 0.01})
+def _ (Bloom.add "ada" seen)
+print (Bloom.contains "ada" seen)     # => true
+print (Bloom.contains "linus" seen)   # => false
 ```
 
 Add many (each body must yield a value — group the call in parens, push `0`):
 
 ```boru
-def bf ({n: 1000, p: 0.01} Bloom.make)
+def bf (Bloom.make {n: 1000, p: 0.01})
 def _ (iota 50 each [
-  var [[i] (bf Bloom.add (convert String i)) 0 ]
+  var [[i] (Bloom.add (convert String i) bf) 0 ]
 ])
 ```
 
 Merge (both built with the same `(n, p)`); guard the incompatible case:
 
 ```boru
-def merged (a Bloom.merge b)
-def safe (do [a Bloom.merge b] error [ get message ])
+def a (Bloom.make {n: 1000, p: 0.01})
+def b (Bloom.make {n: 1000, p: 0.01})
+def merged (Bloom.merge b a)                              # b into a
+def safe (do [Bloom.merge b a] error [ get "message" ])   # a on success, the message on failure
 ```
 
 Persist and reload:
 
 ```boru
-def snap (bf Bloom.encode)
-def back (snap Bloom.decode)
+def snap (Bloom.encode bf)
+def back (Bloom.decode snap)
 ```
 
 ## Common mistakes
 
 | ✗ Don't | ✓ Do | Why |
 |---------|------|-----|
-| `Bloom.contains(bf, "x")` / `bf.contains("x")` | `(bf Bloom.contains "x")` | boru has no call/method syntax. |
-| `Bloom.add bf "x"` (receiver *first*, all-forward) | `Bloom.add "x" bf` (forward, receiver last) or `bf Bloom.add "x"` (piping) | The receiver is the **last** param; putting it first binds it as the *item* and silently misbinds. The `mixed_form_call` nudge is fine — it points at the forward form. |
-| `(bf Bloom.contains "x" end)` everywhere | `(bf Bloom.contains "x")` | Parens already terminate — the `end` is redundant. |
+| `Bloom.contains(bf, "x")` / `bf.contains("x")` | `(Bloom.contains "x" bf)` | boru has no call/method syntax. |
+| `Bloom.add bf "x"` (receiver *first*, all-forward) | `Bloom.add "x" bf` (forward, receiver last) or `bf Bloom.add "x"` (piping) | The receiver is the **last** param; receiver-first matches no signature (`uncalled_function` from `boru check`, run blocked). |
+| `Bloom.merge a b` meaning "b into a" | `Bloom.merge b a` / `a Bloom.merge b` | The last argument is the receiver; `Bloom.merge a b` mutates `b`, silently. |
+| `e get code`, handler `[ get message ]` | `e.code`, handler `[ get "message" ]` | `get` evaluates its key. |
+| `(Bloom.contains "x" bf end)` everywhere | `(Bloom.contains "x" bf)` | Parens already terminate — the `end` is redundant. |
 | keep a pre-`add` copy of `bf` | none — `add` mutates in place | The argument and the return value are the same object. |
 | trust `contains ⇒ true` | verify against the real store | `true` is probabilistic; only `false` is certain. |
-| `a Bloom.merge b` with different `(n, p)` | same `(n, p)` for both | Mismatch raises `incompatible_merge`. |
-| `make BloomFilter {…}` | `{n, p} Bloom.make` | Construct only via `Bloom.make`. |
-| `(bf Bloom.count)` for an exact count | read `bf.added` / `Bloom.encode` | `count` is an estimate; `added` is exact. |
-| `(v) print (w) print` (postfix chain) | `print (v)`, one per statement | `print` collects forward; the postfix chain prints out of order. |
+| `Bloom.merge b a` with different `(n, p)` | same `(n, p)` for both | Mismatch raises `incompatible_merge`. |
+| `make BloomFilter {…}` | `Bloom.make {n, p}` | Construct only via `Bloom.make`. |
+| `(Bloom.count bf)` for an exact count | read `bf.added` / `Bloom.encode` | `count` is an estimate; `added` is exact. |
+| `import "./bloom.aql"` from `test/` | `import "../bloom.aql"` | Imports resolve against the importing file's directory. |
+| `import "boru:test"` then `import "./bloom.aql"` | import `./bloom.aql` first | Upstream type-ID collision: with `boru:test` first, `Bloom.add` / `Bloom.merge` fail `expected BloomFilter, got BloomFilter`. |
+| `(v) print (w) print`, or `"a" print` then `"b" print` | `print (v)`, one per statement | `print` collects forward; the postfix spellings print out of order. |
 
 If the full repo is available, `AGENTS.md`, `api.json` (machine-readable
 signatures), and `docs/reference.md` have the complete guide;

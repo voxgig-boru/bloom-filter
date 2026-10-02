@@ -6,7 +6,7 @@ bloom filter is; if not, start with the [Tutorial](tutorial.md). For the
 [Explanation](explanation.md); for exact signatures, the
 [Reference](reference.md).
 
-- [Install and run boru](#install-and-run-aql)
+- [Install and run boru](#install-and-run-boru)
 - [Size a filter for a target false-positive rate](#size-a-filter-for-a-target-false-positive-rate)
 - [Add and query items](#add-and-query-items)
 - [Estimate how many distinct items you've added](#estimate-how-many-distinct-items-youve-added)
@@ -19,19 +19,24 @@ bloom filter is; if not, start with the [Tutorial](tutorial.md). For the
 
 ---
 
+<a id="install-and-run-aql"></a>
+
 ## Install and run boru
 
 The module is written in boru, which has no tagged release yet, so build
-the interpreter from source (the documented `go install …/aql@latest`
-fails on the repo's replace directives):
+the `boru` binary from source (`go install …/cmd/go/boru@latest` fails on
+the repo's `replace` directives). This library tracks boru **main**:
 
 ```bash
-git clone https://github.com/boru-lang/boru /tmp/aql-source
-cd /tmp/aql-source
-git checkout 618562025d9e0154107306927911a8b1b046333c   # the commit CI pins (.github/workflows/test.yml BORU_REF)
-cd cmd/go
-GOFLAGS=-mod=mod go build -o "$HOME/.local/bin/boru" ./boru
+git clone https://github.com/boru-lang/boru /tmp/boru-source
+cd /tmp/boru-source/cmd/go          # the CLI module; its main package is ./boru
+go build -o "$HOME/.local/bin/boru" ./boru
 ```
+
+(Inside a full checkout the repo's `go.work` wires the sibling modules
+together. From a source tarball or a lone `cmd/go`, build with
+`GOWORK=off GOFLAGS=-mod=mod go build …` instead — that is what CI, the
+SessionStart hook and `test/divergence/run.sh` do.)
 
 Make sure `$HOME/.local/bin` is on your `PATH`, then check it:
 
@@ -45,8 +50,15 @@ Run any script in this repo by passing its path:
 boru test/bloom_smoke_test.aql
 ```
 
-This module is verified against boru commit `6185620`; the CI workflow
-(`.github/workflows/test.yml`) pins the same commit.
+`boru X` compiles the program to bytecode and runs it on the VM — since
+boru 2026-09-19 that is the only execution path (the old `--compile` /
+`--force-compile` / `--no-compile` flags are gone) — after a static
+pre-flight check; a check error stops the run. `boru check X` runs the
+check alone.
+
+This module was last verified against boru main @ `64c5ab2`
+(2026-10-01); the CI workflow (`.github/workflows/test.yml`) builds
+whatever main is at run time.
 
 ---
 
@@ -58,9 +70,9 @@ false-positive rate you'll tolerate, in `(0, 0.5]`), and hand them to
 
 ```boru
 import "./bloom.aql"
-def bf ({n: 100000, p: 0.001} Bloom.make end)
-(bf Bloom.params end) print
-# => {"k": 10, "m": 1437759, "n": 100000, "p": 0.001}
+def bf (Bloom.make {n: 100000, p: 0.001})
+print (Bloom.params bf)
+# => {"n": 100000, "p": 0.001, "m": 1437759, "k": 10}
 ```
 
 You do not choose the bit width or hash count — `m` and `k` are derived
@@ -78,11 +90,15 @@ numbers are derived: [Explanation → Sizing](explanation.md#sizing-the-filter).
 `Bloom.contains` tests membership and returns a Boolean:
 
 ```boru
-def _ (bf Bloom.add "user@example.com" end)
+def _ (Bloom.add "user@example.com" bf)
 
-print ((bf Bloom.contains "user@example.com" end)) end   # => true
-print ((bf Bloom.contains "nobody@example.com" end)) end # => false  (guaranteed correct)
+print (Bloom.contains "user@example.com" bf)     # => true
+print (Bloom.contains "nobody@example.com" bf)   # => false  (guaranteed correct)
 ```
+
+The filter goes **last** — `Bloom.add item bf` — or pipes in from the
+left, `bf Bloom.add item`. Writing it first (`Bloom.add bf item`) matches
+no signature and `boru` refuses to run the program.
 
 A `false` is always correct. A `true` means "probably present" — verify
 against your real store if a false positive would be costly.
@@ -92,7 +108,7 @@ body yields a value):
 
 ```boru
 def _ (iota 1000 each [
-  var [[i] bf Bloom.add `key-${i}` end 0 ]
+  var [[i] (Bloom.add `key-${i}` bf) 0 ]
 ])
 ```
 
@@ -101,7 +117,7 @@ def _ (iota 1000 each [
 ## Estimate how many distinct items you've added
 
 ```boru
-print ((bf Bloom.count end)) end
+print (Bloom.count bf)
 ```
 
 `count` returns an **estimate** derived from the bit pattern, not a
@@ -116,21 +132,24 @@ accessible directly as `bf.added` and is also carried in the
 ## Merge two filters
 
 Two filters built with the **same `(n, p)`** can be unioned. `merge`
-folds the second into the first and returns the first:
+folds its first argument into its last — the receiver — and returns the
+receiver:
 
 ```boru
-def a ({n: 1000, p: 0.01} Bloom.make end)
-def b ({n: 1000, p: 0.01} Bloom.make end)
-def _a (a Bloom.add "from-a" end)
-def _b (b Bloom.add "from-b" end)
+def a (Bloom.make {n: 1000, p: 0.01})
+def b (Bloom.make {n: 1000, p: 0.01})
+def _a (Bloom.add "from-a" a)
+def _b (Bloom.add "from-b" b)
 
-def merged (a Bloom.merge b end)
-print ((merged Bloom.contains "from-a" end)) end   # => true
-print ((merged Bloom.contains "from-b" end)) end   # => true
+def merged (Bloom.merge b a)                 # b into a (piping: a Bloom.merge b)
+print (Bloom.contains "from-a" merged)   # => true
+print (Bloom.contains "from-b" merged)   # => true
 ```
 
-`merge` mutates the first filter (`a`) in place, so `a` and `merged` are
-the same object. `b` is left untouched. This is the basis for
+`merge` mutates the receiver (`a`) in place, so `a` and `merged` are
+the same object. `b` is left untouched. Mind the direction: both
+arguments are filters, so `Bloom.merge a b` is accepted too — and merges
+`a` into `b`. This is the basis for
 distributed counting — build filters independently, then union them.
 
 ---
@@ -144,25 +163,32 @@ handler the Error value is on the stack, with `code` and `message`
 fields:
 
 ```boru
-def a ({n: 1000, p: 0.01} Bloom.make end)
-def b ({n:  500, p: 0.01} Bloom.make end)   # different n → different m
+def a (Bloom.make {n: 1000, p: 0.01})
+def b (Bloom.make {n:  500, p: 0.01})   # different n → different m
 
-def result (do [a Bloom.merge b end] error [
-  get message
+def result (do [Bloom.merge b a] error [
+  get "message"
 ])
-result print
+print (result)
 # => Bloom.merge: filters disagree on m (9586 vs 4793); build both with the same (n, p)
 ```
 
-To branch on the code instead, dispatch with `case` —
-`get code case [incompatible_merge/q "rebuild b" "unexpected"]`. In a
-test, assert the failure (or its exact code):
+The key is quoted because `get` evaluates its key (a bare `get message`
+looks up a variable named `message`). On an error bound to a name, the
+field sugar reads the same fields: `e.code`, `e.message`. To branch on
+the code instead, dispatch with `case` on `get "code"`. In a test, assert
+the failure (or its exact code). Import the library **before**
+`boru:test` — on boru main @ 64c5ab2 the reverse order trips an upstream
+type-ID collision (see the note at the top of [AGENTS.md](../AGENTS.md)):
 
 ```boru
+import "../bloom.aql"     # a suite in test/; a file beside the library uses ./bloom.aql
 import "boru:test"
-[a Bloom.merge b end] Assert.throws end
-def e (do [a Bloom.merge b end])
-incompatible_merge/q (e get code) Assert.equal end
+def a (Bloom.make {n: 1000, p: 0.01})
+def b (Bloom.make {n:  500, p: 0.01})
+Assert.throws [Bloom.merge b a]
+def e (do [Bloom.merge b a])
+Assert.equal incompatible_merge/q e.code
 ```
 
 (Why the module raises coded errors:
@@ -176,10 +202,10 @@ incompatible_merge/q (e get code) Assert.equal end
 the set bit indices — suitable for logging or persistence:
 
 ```boru
-def snap ({n: 1000, p: 0.01} Bloom.make end)
-def _ (snap Bloom.add "x" end)
-print ((snap Bloom.encode end)) end
-# => {added:1 k:7 m:9586 n:1000 p:0.01 set:[603 2193 2602 4192 4601 6191 8190]}
+def snap (Bloom.make {n: 1000, p: 0.01})
+def _ (Bloom.add "x" snap)
+print (Bloom.encode snap)
+# => {n:1000 p:0.01 m:9586 k:7 added:1 set:[603 2193 2602 4192 4601 6191 8190]}
 ```
 
 ---
@@ -191,9 +217,9 @@ trip preserves the parameters, the exact `added` count, and every set
 bit:
 
 ```boru
-def text (snap Bloom.encode end)
-def back (text Bloom.decode end)
-print ((back Bloom.contains "x" end)) end   # => true
+def text (Bloom.encode snap)
+def back (Bloom.decode text)
+print (Bloom.contains "x" back)   # => true
 ```
 
 The rebuilt filter is independent of the original (mutating one does
@@ -208,21 +234,30 @@ functions, so a snapshot is portable across processes running the
 
 ## Use the filter from your own script
 
-Import the library by relative path; you do **not** need to import
+Import the library by a path relative to **your script's own
+directory** (not the directory you run `boru` from); you do **not** need to import
 `boru:math-util`, `boru:array-util`, `boru:bin-util`, or `boru:struct-util`
 yourself — `bloom.aql` pulls in its own dependencies:
 
 ```boru
 import "./bloom.aql"
 
-def bf ({n: 1000, p: 0.01} Bloom.make end)
+def bf (Bloom.make {n: 1000, p: 0.01})
 # … use the Bloom namespace …
 ```
 
-(No `end` is needed after `import` on the pinned build.) Every
-`Bloom.*` call must end with `end` (or be wrapped in parens) so the
-word doesn't swallow the following token. `test/bloom_smoke_test.aql`
-is a complete worked example you can copy from.
+A script in a subdirectory writes `import "../bloom.aql"` (as the test
+suites in `test/` do). No `end` is needed after `import`. Wrap a
+`Bloom.*` call in parens to use its value; a bare call followed by more
+tokens on the same statement needs `;` (or `end`) so the word doesn't
+collect them. `test/bloom_smoke_test.aql` is a complete worked example
+you can copy from.
+
+If your script also imports `boru:test`, import `./bloom.aql` **first**:
+on boru main @ 64c5ab2, `boru:test` imported first makes `Bloom.add` and
+`Bloom.merge` fail with `expected BloomFilter, got BloomFilter`
+(an upstream type-ID collision — see the note at the top of
+[AGENTS.md](../AGENTS.md)).
 
 ---
 
@@ -257,23 +292,28 @@ run count is fixed. `bloom_prop_test.aql` calls the imperative
 explicitly, which is why it carries the expensive O(m) properties
 (merge, encode, decode) at a smaller run budget.
 
-Each test file ends by asserting `Test.fail-count` is `0`, so a failure
-makes `boru` exit non-zero — which is exactly what the
-[CI workflow](../.github/workflows/test.yml) checks on every push and pull request.
+Each test file ends by asserting `Test.fail-count` is `0` (and prints
+`all green`), so a failure makes `boru` exit non-zero — which is exactly
+what the [CI workflow](../.github/workflows/test.yml) checks on every
+push and pull request.
 
-One more check sits outside this set. `test/divergence/` runs every suite
-through all three of boru's execution surfaces — the interpreter, `boru
-check` (static type-check), and the byte compiler (`boru --compile`) — and
-asserts none errors or disagrees. Run it with:
+> **Status on boru main @ 64c5ab2:** all five suites compile, run green and
+> check with 0 errors. The four suites that import `boru:test` import
+> `../bloom.aql` **first**, which works around an upstream defect
+> (`boru:test`'s types collide with `BloomFilter`'s type ID, so with
+> `boru:test` first `Bloom.add` / `Bloom.merge` fail `expected
+> BloomFilter, got BloomFilter`). See `dx-report.md` §M1.
+
+One more check sits outside this set. `test/divergence/run.sh` is the
+single-path gate: every suite must exit 0 under `boru X` (compiled — the
+only execution path now) **and** report 0 errors under `boru check X`, and
+`bloom.aql` must check clean on its own:
 
 ```bash
-test/divergence/run.sh
+test/divergence/run.sh                               # builds boru @ main HEAD (cached)
+BORU=$HOME/.local/bin/boru test/divergence/run.sh    # or use an existing binary
 ```
 
-It builds a newer boru (the `--compile` CLI postdates this module's pin) and
-prints a per-suite interpreter/check/bytecode matrix. All five suites are
-green on all three. See [`test/divergence/README.md`](../test/divergence/README.md)
-for the one upstream byte-compiler bug this guards against (a compiled
-`each` body drops a *block-local* binding) and the one-line structural
-choice — building a bulk fixture at top level — that keeps the suites clear
-of it.
+It replaced the old interpreter / check / byte-compiler agreement matrix
+when boru retired the interpreter fallback and the `--compile` flags. See
+[`test/divergence/README.md`](../test/divergence/README.md).

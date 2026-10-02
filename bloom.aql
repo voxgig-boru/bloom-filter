@@ -1,18 +1,22 @@
-# bloom-filter: minimal probabilistic set membership in AQL.
+# bloom-filter: minimal probabilistic set membership in boru.
 #
-# Public surface (the Bloom namespace exported at the bottom):
+# Public surface (the Bloom namespace exported at the bottom). Every word
+# takes the receiver (the BloomFilter) as its LAST argument, so the
+# forward form below is canonical and piping the receiver in from the
+# left (`bf Bloom.add item`) binds identically:
 #
-#   {n:Integer, p:Float} Bloom.make   → BloomFilter
-#   bf Bloom.add item                   → BloomFilter (mutated in place)
-#   bf Bloom.contains item              → Boolean
-#   bf Bloom.count                      → Integer  (cardinality estimate)
-#   bf Bloom.params                     → Map      ({n, p, m, k})
-#   bf Bloom.encode                     → String   (jsonic snapshot)
-#   text Bloom.decode                   → BloomFilter (rebuilt snapshot)
-#   a Bloom.merge b                     → BloomFilter (m and k must match)
+#   Bloom.make {n:Integer, p:Float}     → BloomFilter
+#   Bloom.add item bf                   → BloomFilter (mutated in place)
+#   Bloom.contains item bf              → Boolean
+#   Bloom.count bf                      → Integer  (cardinality estimate)
+#   Bloom.params bf                     → Map      ({n, p, m, k})
+#   Bloom.encode bf                     → String   (jsonic snapshot)
+#   Bloom.decode text                   → BloomFilter (rebuilt snapshot)
+#   Bloom.merge b a                     → BloomFilter (b OR'd into a; m and k must match)
 #
 # Failures raise coded errors (catch with `do […] error […]`, read
-# `e.code` / `e.message` in the handler):
+# `e.code` / `e.message` — or `get "code"` on the stack value in the
+# handler):
 #
 #   bad_input           Bloom.make arguments missing or out of range
 #   incompatible_merge  Bloom.merge filters disagree on m or k
@@ -21,14 +25,15 @@
 # BloomFilter is a sealed `class` instance. Bit storage is a FlexList
 # of 63-bit integer words mutated in place.
 #
-# Calling convention: the receiver/data comes first, then the verb, then
-# any extra arguments, and the call is terminated with `end` (or wrapped
-# in parens) — `bf Bloom.add item end`. Without a terminator the verb
-# swallows the following token, giving a wrong result or a dispatch error.
+# Calling convention: verb first, arguments forward, receiver LAST —
+# `Bloom.add item bf`. Group a call in parens to use its value. The one
+# order that misbinds is receiver-first-all-forward (`Bloom.add bf item`),
+# which `boru check` rejects (uncalled_function: matched no signature).
 #
-# Imported via `import "./bloom.aql"`; the importing script need not
-# pre-import the `aql:*` utilities (math-util, array-util, bin-util,
-# struct-util) — this module imports them itself.
+# Imported via `import "./bloom.aql"` (resolved against the IMPORTING
+# file's directory); the importing script need not pre-import the
+# `boru:*` utilities (math-util, array-util, bin-util, struct-util) —
+# this module imports them itself.
 
 
 import "boru:math-util"
@@ -66,7 +71,7 @@ def BloomFilter class {
 # odd, which keeps the probe sequence (h1 + i*h2) mod m covering all
 # residues. Both hashes are < 2^32 and k is small, so the index
 # arithmetic stays far below the Integer overflow boundary (overflow
-# is a hard error in aql, not a silent wrap).
+# is a hard error in boru, not a silent wrap).
 
 def hash1 fn [
   [s:String] [Integer] [
@@ -165,7 +170,7 @@ def derive-k fn [
 # Arguments are validated up front with `raise` (code bad_input).
 # Style note: each raise message is bound with `def` first, and every
 # guard `if` carries an explicit empty else `[]`. Both were required
-# workarounds on builds before aql 7193a7d3 (raise didn't collect
+# workarounds on builds before boru 7193a7d3 (raise didn't collect
 # template literals; an else-less `if` forward-collected the next
 # `def` statement — see dx-report.md); they're kept because they read
 # clearly and run correctly on older builds too.
@@ -345,7 +350,7 @@ def bloom-decode fn [
 # Merge requires both filters to share the same bit width (m) and
 # hash count (k) — the natural outcome of building them with the same
 # (n, p). On a mismatch we raise incompatible_merge. (`raise` landed
-# in aql after db828ec; the old idiom of signalling by dispatching a
+# in boru after db828ec; the old idiom of signalling by dispatching a
 # descriptively-named undefined word is retired.) The union itself is
 # one word-wise OR per 63-bit word, not a per-bit walk.
 def bloom-merge fn [
@@ -379,18 +384,19 @@ def bloom-merge fn [
 
 # --- namespace ------------------------------------------------------
 #
-# Functions are exported with `/r` so the auto-evaluating map literal
-# doesn't dispatch them at construction time. Types and bare values go
-# in bare. See docs/reference.md §"Word modifiers".
+# Functions are exported with `/v` (the value, not a call — ADR-011; the
+# modifier was spelled `/r` before boru 2026-08-19) so the auto-evaluating
+# map literal doesn't dispatch them at construction time: a bare name that
+# holds a function CALLS it. Types and bare values go in bare.
 
 export "Bloom" {
   BloomFilter
-  make:     make-bloom/r
-  add:      bloom-add/r
-  contains: bloom-contains/r
-  count:    bloom-count/r
-  params:   bloom-params/r
-  encode:   bloom-encode/r
-  decode:   bloom-decode/r
-  merge:    bloom-merge/r
+  make:     make-bloom/v
+  add:      bloom-add/v
+  contains: bloom-contains/v
+  count:    bloom-count/v
+  params:   bloom-params/v
+  encode:   bloom-encode/v
+  decode:   bloom-decode/v
+  merge:    bloom-merge/v
 }

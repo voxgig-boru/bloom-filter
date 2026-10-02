@@ -1,5 +1,16 @@
 # Performance baseline — `Bloom` on compiled boru
 
+> **STATUS NOTE — 2026-10-01 (boru main @ 64c5ab2).** The two surfaces
+> compared below no longer exist: boru retired the interpreter execution
+> path and the `--no-compile` / `--force-compile` flags on 2026-09-19, so
+> `boru X` is always the compiled path (preceded by a static pre-flight
+> check). Re-measured on main @ 64c5ab2 with the reproduction script below
+> rewritten for the current CLI and the receiver-last forward form: the core
+> workload (3 000 `add` + 3 000 `contains`) takes **~0.9–1.0 s wall-clock**
+> including ~25 ms process startup and the pre-flight check — in line with
+> the compiled column below. The interpreter column is history. The rest of
+> this page is unchanged except for the reproduction commands.
+
 Baseline captured against `boru-lang/boru` `main` (branch
 `claude/voxgig-boru-baseline-m2nct6`), the build on which the library and **all
 five** of its test suites run **fully bytecode-compiled** (`boru
@@ -42,22 +53,20 @@ the library code the compiler accelerates.
 
 ## Reproducing
 
-```bash
-# fully-compiled core workload
-boru --force-compile <(cat <<'EOF'
-import "./bloom.aql"
-def bf ({n: 5000, p: 0.01} Bloom.make)
-def _add  (iota 3000 each [ var [[i] (bf Bloom.add (convert String i)) 0 ] ])
-def hits  (iota 3000 each [ var [[i] if (bf Bloom.contains (convert String i)) [1] [0] ] ])
-print (0 hits [add end] fold)          # => 3000 (no false negatives)
-EOF
-)
+Save as `bloom-perf.aql` next to `bloom.aql` (imports resolve against the
+script's own directory):
 
-# per-suite: compare the two surfaces
-for s in test/*.aql; do
-  time boru --no-compile   "$s" >/dev/null
-  time boru --force-compile "$s" >/dev/null
-done
+```boru
+import "./bloom.aql"
+def bf (Bloom.make {n: 5000, p: 0.01})
+def _add  (iota 3000 each [ var [[i] (Bloom.add (convert String i) bf) 0 ] ])
+def hits  (iota 3000 each [ var [[i] if (Bloom.contains (convert String i) bf) [1] [0] ] ])
+print (0 hits [add end] fold)          # => 3000 (no false negatives)
+```
+
+```bash
+time boru bloom-perf.aql                            # boru X always compiles now
+for s in test/*.aql; do time boru "$s" >/dev/null; done   # per-suite wall-clock
 ```
 
 Numbers are indicative (single machine, wall-clock); treat the *ratios* as the

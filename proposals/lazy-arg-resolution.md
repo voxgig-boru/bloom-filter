@@ -9,6 +9,9 @@ forward-argument resolution" (`66876387`); the behaviour ships in
 family (an else-less guard `if` eagerly collecting a following `def`
 statement) is reported there as §1. The text below is the original
 RFC, kept for the design rationale.
+*(2026-10-01: still holds on boru main @ `64c5ab2` — a bare `import` needs
+no terminator; this module no longer pins a commit, it tracks main. The
+`aql` spellings in the transcripts below predate the aql → boru rename.)*
 **Target:** `boru-lang/boru` interpreter (dispatch / overload resolution)
 **Provenance:** surfaced while upgrading the `bloom-filter` module to
 `boru @ db828ec`; recorded as gotcha **N1** in that project's

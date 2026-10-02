@@ -16,8 +16,10 @@ type. Import it with:
 import "./bloom.aql"
 ```
 
-(No `end` is required after `import` on the pinned build; a trailing
-`end` is harmless.) A consuming script does **not** need to import
+The path resolves against the **directory of the importing file**, not
+the working directory (a script in `test/` writes `import "../bloom.aql"`).
+No `end` is required after `import`; a trailing `end` is harmless. A
+consuming script does **not** need to import
 `boru:math-util`, `boru:array-util`, `boru:bin-util`, or `boru:struct-util`
 itself — `bloom.aql` imports them internally.
 
@@ -25,15 +27,28 @@ itself — `bloom.aql` imports them internally.
 
 ## Calling convention
 
-Every operation is a forward-dispatched word and must be terminated
-with `end` (or wrapped in parentheses) at the call site, e.g.
-`bf Bloom.add "x" end` or `(bf Bloom.add "x")`. Without a terminator
-the word collects the following token as an argument. This is general
-boru forward-precedence behaviour, not specific to this module.
+Every word takes the **receiver** (the `BloomFilter` it reads or
+mutates) as its **last** parameter. A call binds its arguments in
+signature order: the tokens written after the word fill positions from
+the first, and every position still unfilled is taken from the value
+stack, top first. So the canonical **forward** form writes the verb,
+then the arguments, then the receiver — `Bloom.add "x" bf` — and the
+**piping** form `bf Bloom.add "x"` (receiver flowing in from the left)
+binds identically.
 
-Argument order follows the boru rule "first signature parameter is the
-top of the stack". The call-site columns below show the natural
-left-to-right order to write.
+Group a call in parentheses to use its result as a value —
+`(Bloom.contains "x" bf)`. The parens terminate the call; a trailing
+`end` (or `;`) is only needed after a bare statement-level call that is
+followed by more tokens.
+
+The **receiver-first** all-forward order (`Bloom.add bf "x"`) matches no
+signature: `boru check` reports `uncalled_function`, and `boru X` runs
+that check before it compiles, so the program does not run. `Bloom.merge`
+is the exception the checker cannot see — both of its arguments are
+`BloomFilter`s, so `Bloom.merge a b` is legal and merges `a` into `b`.
+
+The **Call** rows below give the forward form; the **Stack in** rows
+give the signature (parameter order), receiver last.
 
 ---
 
@@ -71,8 +86,8 @@ Construct a filter sized for a target capacity and false-positive rate.
 
 | | |
 |--|--|
-| **Call**    | `{n: Integer, p: Float} Bloom.make end` |
-| **Stack in**| an options Map with keys `n` and `p` |
+| **Call**    | `Bloom.make {n: Integer, p: Float}` (or `{n, p} Bloom.make`) |
+| **Stack in**| `opts:Options` — a Map with keys `n` and `p` |
 | **Returns** | `BloomFilter` |
 | **Errors**  | raises `bad_input` when `n` is not an Integer ≥ 1 or `p` is not a Float in `(0, 0.5]` |
 
@@ -82,9 +97,9 @@ are enforced: a `p` above `0.5` would round `k` toward `0`, so it is
 rejected rather than accepted uselessly.
 
 ```boru
-def bf ({n: 1000, p: 0.01} Bloom.make end)
-print ((bf Bloom.params end)) end
-# => {k:7 m:9586 n:1000 p:0.01}
+def bf (Bloom.make {n: 1000, p: 0.01})
+print (Bloom.params bf)
+# => {"n": 1000, "p": 0.01, "m": 9586, "k": 7}
 ```
 
 ### `Bloom.add`
@@ -94,8 +109,8 @@ before hashing.
 
 | | |
 |--|--|
-| **Call**    | `bf Bloom.add item end` |
-| **Stack in**| `BloomFilter`, then the item (`Any`) |
+| **Call**    | `Bloom.add item bf` (piping: `bf Bloom.add item`) |
+| **Stack in**| `item:Any`, then the receiver `bf:BloomFilter` |
 | **Returns** | the same `BloomFilter`, mutated in place |
 | **Effect**  | sets `k` bits; increments `added` by 1 |
 
@@ -109,8 +124,8 @@ Test membership.
 
 | | |
 |--|--|
-| **Call**    | `bf Bloom.contains item end` |
-| **Stack in**| `BloomFilter`, then the item (`Any`) |
+| **Call**    | `Bloom.contains item bf` (piping: `bf Bloom.contains item`) |
+| **Stack in**| `item:Any`, then the receiver `bf:BloomFilter` |
 | **Returns** | `Boolean` |
 
 `false` means the item was **definitely never added**. `true` means
@@ -119,9 +134,9 @@ approximately rate `p`. There are no false negatives. See
 [Explanation §No false negatives](explanation.md#why-there-are-no-false-negatives).
 
 ```boru
-def _ (bf Bloom.add "alice" end)
-print ((bf Bloom.contains "alice" end)) end   # => true
-print ((bf Bloom.contains "carol" end)) end   # => false
+def _ (Bloom.add "alice" bf)
+print (Bloom.contains "alice" bf)   # => true
+print (Bloom.contains "carol" bf)   # => false
 ```
 
 ### `Bloom.count`
@@ -130,8 +145,8 @@ Estimate the number of distinct items added.
 
 | | |
 |--|--|
-| **Call**    | `bf Bloom.count end` |
-| **Stack in**| `BloomFilter` |
+| **Call**    | `Bloom.count bf` |
+| **Stack in**| `bf:BloomFilter` |
 | **Returns** | `Integer` (estimate) |
 
 Uses the Swamidass–Baldi estimator over the set-bit population, with a
@@ -146,23 +161,24 @@ Return the filter's parameters as a Map.
 
 | | |
 |--|--|
-| **Call**    | `bf Bloom.params end` |
-| **Stack in**| `BloomFilter` |
+| **Call**    | `Bloom.params bf` |
+| **Stack in**| `bf:BloomFilter` |
 | **Returns** | `Map` with keys `n`, `p`, `m`, `k` |
 
 ```boru
-def ps (bf Bloom.params end)
-print ((ps "m" get)) end   # => 9586
+def ps (Bloom.params bf)
+print (ps.m)   # => 9586
 ```
 
 ### `Bloom.merge`
 
-Union two filters into the first.
+Union the source filter into the receiver — the **last** argument:
+`Bloom.merge b a` merges `b` into `a`.
 
 | | |
 |--|--|
-| **Call**    | `a Bloom.merge b end` |
-| **Stack in**| target `BloomFilter` `a`, then source `BloomFilter` `b` |
+| **Call**    | `Bloom.merge b a` (piping: `a Bloom.merge b`) |
+| **Stack in**| source `b:BloomFilter`, then the receiver (target) `a:BloomFilter` |
 | **Returns** | `a`, now containing every bit that was set in `a` or `b` |
 | **Effect**  | mutates `a` in place; `b` is unchanged; `a.added` becomes `a.added + b.added` |
 | **Errors**  | raises `incompatible_merge` if `a` and `b` differ on `m` or `k` |
@@ -174,8 +190,13 @@ itself is one bitwise OR per 63-bit word.
 
 The error message names the mismatched parameter and both values, e.g.
 `Bloom.merge: filters disagree on m (9586 vs 4793); build both with
-the same (n, p)`. Trap it with `do […] error […]` (read `e get code` /
-`e get message`) or assert it with `Assert.throws`.
+the same (n, p)`. Trap it with `do […] error […]` (read `e.code` /
+`e.message` on a bound error, or `get "code"` / `get "message"` in the
+handler) or assert it with `Assert.throws`.
+
+Because both parameters are `BloomFilter`s, a reversed order is not a
+type error: `Bloom.merge a b` merges `a` into `b` and mutates `b`. The
+receiver — the filter that changes — is always the last argument.
 
 ### `Bloom.encode`
 
@@ -183,16 +204,16 @@ Serialize the filter to a jsonic-style string snapshot.
 
 | | |
 |--|--|
-| **Call**    | `bf Bloom.encode end` |
-| **Stack in**| `BloomFilter` |
+| **Call**    | `Bloom.encode bf` |
+| **Stack in**| `bf:BloomFilter` |
 | **Returns** | `String` |
 
 The string carries `n`, `p`, `m`, `k`, `added`, and the sorted list of
 set bit indices. Cost is `O(m)`.
 
 ```boru
-print ((bf Bloom.encode end)) end
-# => {added:1 k:7 m:9586 n:1000 p:0.01 set:[223 1110 2827 3714 4601 6318 7205]}
+print (Bloom.encode bf)
+# => {n:1000 p:0.01 m:9586 k:7 added:1 set:[1377 1551 3904 6257 6431 8610 8784]}
 ```
 
 The snapshot round-trips through `Bloom.decode`. (Exact bit indices
@@ -206,8 +227,8 @@ Rebuild a filter from a `Bloom.encode` snapshot.
 
 | | |
 |--|--|
-| **Call**    | `text Bloom.decode end` |
-| **Stack in**| the snapshot `String` |
+| **Call**    | `Bloom.decode text` |
+| **Stack in**| `text:String` — the snapshot |
 | **Returns** | a fresh `BloomFilter` |
 | **Errors**  | raises `bad_payload` when the text is not parseable jsonic or lacks the required fields |
 
@@ -217,9 +238,9 @@ rebuilt filter is independent of the original — mutating one does not
 affect the other.
 
 ```boru
-def snap (bf Bloom.encode end)
-def back (snap Bloom.decode end)
-print ((back Bloom.contains "alice" end)) end   # => true
+def snap (Bloom.encode bf)
+def back (Bloom.decode snap)
+print (Bloom.contains "alice" back)   # => true
 ```
 
 ---
@@ -227,8 +248,9 @@ print ((back Bloom.contains "alice" end)) end   # => true
 ## Errors at a glance
 
 All failures raise coded errors; catch with `do […] error […]` and
-read `e get code` / `e get message` (dispatch on several codes with
-`case`).
+read `e.code` / `e.message` on a bound error, or `get "code"` /
+`get "message"` on the error the handler receives (`get` evaluates its
+key, so the key must be quoted). Dispatch on several codes with `case`.
 
 | Code | Raised by | Situation |
 |------|-----------|-----------|
@@ -236,9 +258,11 @@ read `e get code` / `e get message` (dispatch on several codes with
 | `incompatible_merge` | `merge` | the filters disagree on `m` or `k` |
 | `bad_payload` | `decode` | text is not parseable jsonic, or is missing/mis-typing `n p m k added set` |
 
-A missing `end` after a `Bloom.*` call is not a module error but a
-general boru dispatch problem — the word collects the following token
-(add `end` or parens).
+A call written receiver-first (`Bloom.add bf "x"`) is not a module
+error but a binding error: `boru check` reports `uncalled_function` and
+the program does not run. A bare call followed by more tokens on the
+same statement can collect them as arguments — group it in parens or
+end it with `;`/`end`.
 
 ## Complexity
 
